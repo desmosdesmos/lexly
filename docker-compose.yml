@@ -1,0 +1,115 @@
+version: '3.8'
+
+services:
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: law-ai-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: law_ai_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - law-ai-network
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: law-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - law-ai-network
+
+  # Backend (FastAPI)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: law-ai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DEBUG=False
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/law_ai_agent
+      - REDIS_URL=redis://redis:6379/0
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - CORS_ORIGINS=["http://localhost:5173","http://localhost:3000","http://localhost:80"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploads:/app/uploads
+    networks:
+      - law-ai-network
+    restart: unless-stopped
+
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8000/api/v1
+    container_name: law-ai-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - law-ai-network
+    restart: unless-stopped
+
+  # n8n
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: law-ai-n8n
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=Europe/Moscow
+      - TZ=Europe/Moscow
+      - N8N_SECURE_COOKIE=false
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_WEBHOOK_URL=http://localhost:5678/webhook
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./prompts:/app/prompts
+      - ./n8n/workflows:/app/workflows
+    networks:
+      - law-ai-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+
+networks:
+  law-ai-network:
+    driver: bridge

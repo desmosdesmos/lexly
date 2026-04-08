@@ -1,0 +1,11 @@
+.env  
+*.tar.gz  
+*.log  
+node_modules/  
+venv/  
+dist/  
+__pycache__/  
+*.pyc  
+law_ai.db  
+token.txt  
+backend/.env  
