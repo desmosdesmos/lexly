@@ -229,6 +229,20 @@ export function LawMonitoring() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 flex-wrap mb-1">
                                       {ch.title && <h4 className="font-semibold text-sm">{ch.title}</h4>}
+                                      {ch.impact_level && (
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                          ch.impact_level.toLowerCase() === 'high' ? 'bg-red-500/20 text-red-400' :
+                                          ch.impact_level.toLowerCase() === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                                          'bg-green-500/20 text-green-400'
+                                        }`}>
+                                          Влияние: {ch.impact_level}
+                                        </span>
+                                      )}
+                                      {ch.action_required && (
+                                        <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-purple-500/20 text-purple-400">
+                                          Требует действий
+                                        </span>
+                                      )}
                                       {ch.url && (
                                         <Link href={ch.url} className="text-xs">
                                           Источник

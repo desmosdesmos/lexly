@@ -214,6 +214,60 @@ export function CaseLaw() {
                 )}
               </div>
 
+              {/* Statute of Limitations & Key Arguments */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {a.statute_of_limitations && (
+                  <Card className="border-blue-500/20 bg-blue-500/5">
+                    <CardBody>
+                      <h3 className="font-semibold mb-3 flex items-center gap-2 text-blue-400">
+                        <Clock className="w-5 h-5" />
+                        Исковая давность
+                      </h3>
+                      <p className="text-sm leading-relaxed">{a.statute_of_limitations}</p>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {a.key_arguments && (
+                  <Card>
+                    <CardBody>
+                      <h3 className="font-semibold mb-3 flex items-center gap-2 text-purple-400">
+                        <MessageSquare className="w-5 h-5" />
+                        Ключевые доводы
+                      </h3>
+                      <div className="space-y-4">
+                        {a.key_arguments.plaintiff && a.key_arguments.plaintiff.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Истец:</p>
+                            <ul className="space-y-1.5">
+                              {a.key_arguments.plaintiff.map((arg, i) => (
+                                <li key={i} className="text-xs flex items-start gap-1.5">
+                                  <span className="text-green-500 mt-0.5">•</span>
+                                  <span>{arg}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {a.key_arguments.defendant && a.key_arguments.defendant.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2">Ответчик:</p>
+                            <ul className="space-y-1.5">
+                              {a.key_arguments.defendant.map((arg, i) => (
+                                <li key={i} className="text-xs flex items-start gap-1.5">
+                                  <span className="text-red-500 mt-0.5">•</span>
+                                  <span>{arg}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </CardBody>
+                  </Card>
+                )}
+              </div>
+
               {/* Key trends */}
               {a.key_trends && a.key_trends.length > 0 && (
                 <Card>

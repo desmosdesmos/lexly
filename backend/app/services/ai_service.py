@@ -380,6 +380,11 @@ class AIService:
     "topic": "Тема анализа",
     "summary": "Резюме текущей ситуации (4-6 предложений). Ссылайся на реальные дела из списка.",
     "key_trends": ["Тенденция 1 с описанием", "Тенденция 2", "Тенденция 3"],
+    "statute_of_limitations": "Какой срок исковой давности применяется и с какого момента он начинает течь по данной категории дел",
+    "key_arguments": {
+        "plaintiff": ["Сильный довод истца 1", "Довод истца 2"],
+        "defendant": ["Сильный довод ответчика 1", "Довод ответчика 2"]
+    },
     "typical_outcomes": ["Сценарий 1: % успеха, условия", "Сценарий 2"],
     "important_precedents": [
         {"description": "Суть спора", "court": "Суд", "year": 2024, "significance": "Важность", "source_url": "URL ИЗ СПИСКА real_cases", "law_url": "URL закона или оставить пустым"}
@@ -436,6 +441,8 @@ class AIService:
             "effective_date": "Дата",
             "description": "Суть изменения",
             "impact": "Последствия",
+            "impact_level": "high или medium или low",
+            "action_required": true,
             "affected_areas": ["Область"],
             "recommendations": "Что делать",
             "url": "URL ИЗ real_changes"
