@@ -32,7 +32,7 @@ export function TermsOfService() {
             <ul className="text-white/60 leading-relaxed mb-6 space-y-2 list-none pl-0">
               <li><strong>Сервис (Laxly)</strong> — веб-платформа laxlylaw.ru, предоставляющая услуги на базе искусственного интеллекта.</li>
               <li><strong>Пользователь</strong> — физическое или юридическое лицо, прошедшее регистрацию.</li>
-              <li><strong>Оператор</strong> — ООО «Лексли» (ИНН 7707445720, ОГРН 1247700123456).</li>
+              <li><strong>Оператор</strong> — Пащенко Егор Викторович (ИНН 644011277300).</li>
             </ul>
 
             <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">2. Предмет соглашения</h2>

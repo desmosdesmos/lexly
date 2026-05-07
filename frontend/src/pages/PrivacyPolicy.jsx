@@ -72,8 +72,8 @@ export function PrivacyPolicy() {
               По всем вопросам, связанным с персональными данными, а также для отзыва согласия, пишите нам:
             </p>
             <div className="p-4 rounded-xl bg-white/[0.04] border border-white/[0.08]">
-              <p className="text-white/80"><strong>Email:</strong> privacy@laxlylaw.ru</p>
-              <p className="text-white/80"><strong>Ответственный:</strong> Иванов А.С., Генеральный директор ООО «Лексли»</p>
+              <p className="text-white/80"><strong>Email:</strong> desmosymail@gmail.com</p>
+              <p className="text-white/80"><strong>Оператор:</strong> Пащенко Е.В.</p>
             </div>
           </CardBody>
         </Card>

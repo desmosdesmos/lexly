@@ -170,7 +170,7 @@ export function DashboardLayout() {
             <div className="flex gap-4">
               <Link to="/privacy" className="hover:text-[var(--accent)]">Политика ПДн</Link>
               <Link to="/terms" className="hover:text-[var(--accent)]">Оферта</Link>
-              <span className="hidden md:inline">ООО «Лексли», ИНН 7707445720</span>
+              <span className="hidden md:inline">Пащенко Е.В., ИНН 644011277300</span>
             </div>
             <div>© 2026 Laxly Law AI</div>
           </div>

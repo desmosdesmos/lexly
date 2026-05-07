@@ -165,19 +165,18 @@ export function LandingPage() {
             </div>
             
             <div className="space-y-4">
-              <h4 className="font-medium text-sm" style={{ color: isLight ? 'var(--text-primary)' : 'white' }}>Юридическая информация</h4>
+              <h4 className="font-medium text-sm" style={{ color: isLight ? 'var(--text-primary)' : 'white' }}>Правовая информация</h4>
               <div className="space-y-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                <p>ООО «Лексли»</p>
-                <p>ОГРН: 1247700123456</p>
-                <p>ИНН: 7707445720</p>
-                <p>Адрес: 127051, г. Москва, ул. Петровка, д. 26, стр. 2</p>
+                <p>Пащенко Егор Викторович</p>
+                <p>ИНН: 644011277300</p>
+                <p>Адрес: г. Саратов</p>
               </div>
             </div>
 
             <div className="space-y-4">
               <h4 className="font-medium text-sm" style={{ color: isLight ? 'var(--text-primary)' : 'white' }}>Поддержка</h4>
               <div className="space-y-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                <p>Email: <a href="mailto:support@laxlylaw.ru" className="hover:text-[#0A84FF]">support@laxlylaw.ru</a></p>
+                <p>Email: <a href="mailto:desmosymail@gmail.com" className="hover:text-[#0A84FF]">desmosymail@gmail.com</a></p>
                 <p>Часы работы: Пн-Пт, 10:00 – 19:00 (МСК)</p>
                 <div className="pt-2 flex gap-4">
                   <Link to="/privacy" className="hover:text-[#0A84FF] transition-colors">Политика ПДн</Link>
