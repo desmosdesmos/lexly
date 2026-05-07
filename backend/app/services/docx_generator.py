@@ -347,6 +347,55 @@ class DocxGenerator:
         buffer.seek(0)
         return buffer.getvalue()
 
+    def generate_from_plain_text(self, title: str, content: str) -> bytes:
+        """
+        Сгенерировать .docx из обычного текста (для исправленного договора).
+        Разбивает текст на параграфы по пустым строкам.
+        """
+        self.doc = Document()
+        self._setup_styles()
+
+        # Заголовок
+        if title:
+            self.add_title(title)
+
+        # Разбиваем текст на параграфы
+        paragraphs = content.split('\n\n')
+        for para_text in paragraphs:
+            para_text = para_text.strip()
+            if not para_text:
+                continue
+
+            # Заголовки (короткие строки без точки в конце)
+            if len(para_text) < 80 and not para_text.endswith('.') and para_text.isupper():
+                self.add_title(para_text)
+            elif len(para_text) < 100 and not para_text.endswith('.') and para_text[0].isupper():
+                self.add_subtitle(para_text)
+            else:
+                # Обычный текст - разбиваем по строкам
+                lines = para_text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    # Списки
+                    if line.startswith(('- ', '• ', '● ', '✓ ', '✔ ')):
+                        self.add_list_item(line[2:].strip())
+                    elif line[0].isdigit() and '. ' in line[:5]:
+                        self.add_list_item(line.split('. ', 1)[1].strip(), number=line[0])
+                    else:
+                        self.add_body_text(line)
+
+            # Пустая строка между параграфами
+            p = self.doc.add_paragraph()
+            run = p.add_run("")
+            run.font.size = Pt(6)
+
+        buffer = io.BytesIO()
+        self.doc.save(buffer)
+        buffer.seek(0)
+        return buffer.getvalue()
+
 
 # Singleton
 docx_generator = DocxGenerator()

@@ -19,6 +19,15 @@ class UsageLimit(Base):
     max_documents = Column(Integer, nullable=False, default=5)
     max_contracts = Column(Integer, nullable=False, default=3)
     reset_date = Column(Date, nullable=False, default=date.today)
+    
+    # Daily AI limits (added migration 2026-04-11)
+    ai_requests_today = Column(Integer, nullable=False, default=0)
+    court_practice_today = Column(Integer, nullable=False, default=0)
+    law_monitoring_today = Column(Integer, nullable=False, default=0)
+    last_ai_request_date = Column(String(10))  # YYYY-MM-DD
+    last_court_practice_date = Column(String(10))
+    last_law_monitoring_date = Column(String(10))
+    
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
 

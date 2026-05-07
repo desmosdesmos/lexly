@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import Optional
 from datetime import date
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.user import User
@@ -11,6 +12,7 @@ from app.services.limit_service import limit_service
 from app.models.request_log import RequestLog
 from app.schemas.user import UserResponse, UserUpdate
 from app.schemas.usage import UsageResponse, UsageLimitItem
+from app.services.auth_service import hash_password, verify_password
 from app.middleware.auth import get_current_user
 
 router = APIRouter(prefix="/user", tags=["Пользователь"])
@@ -151,3 +153,47 @@ async def get_history(
         "page": page,
         "limit": limit,
     }
+
+
+# ========== Смена пароля ==========
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post(
+    "/change-password",
+    summary="Сменить пароль",
+    status_code=status.HTTP_200_OK,
+)
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Сменить пароль пользователя.
+
+    - **current_password**: Текущий пароль
+    - **new_password**: Новый пароль (минимум 8 символов)
+    """
+    # Проверяем текущий пароль
+    if not verify_password(request.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный текущий пароль",
+        )
+
+    # Валидация нового пароля
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Новый пароль должен содержать минимум 8 символов",
+        )
+
+    # Устанавливаем новый пароль
+    current_user.password_hash = hash_password(request.new_password)
+    await db.commit()
+
+    return {"message": "Пароль успешно изменен"}

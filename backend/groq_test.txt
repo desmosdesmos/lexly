@@ -1,0 +1,8 @@
+Models list status: 403
+Error: {"error":{"message":"Forbidden"}}
+
+Chat test (llama-3.1-8b-instant) status: 403
+Error: {"error":{"message":"Forbidden"}}
+
+Chat test (llama-3.3-70b-versatile) status: 403
+Error: {"error":{"message":"Forbidden"}}

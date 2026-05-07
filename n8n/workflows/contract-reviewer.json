@@ -1,0 +1,167 @@
+{
+  "name": "Contract Reviewer",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "contract-reviewer",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Извлечение текста договора\nconst userId = $json.user_id;\nconst extractedText = $json.data.extracted_text;\n\n// Проверка на пустой текст\nif (!extractedText || extractedText.trim().length === 0) {\n  throw new Error('Текст договора пуст');\n}\n\nreturn {\n  json: {\n    userId,\n    contractText: extractedText,\n  }\n}"
+      },
+      "id": "extract-text",
+      "name": "Извлечение текста",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Загрузка промпта для анализа\nconst fs = require('fs');\nconst path = require('path');\n\nconst promptPath = path.join('/app/prompts', 'contract-reviewer', 'analysis.txt');\nlet prompt = fs.readFileSync(promptPath, 'utf8');\n\n// Замена плейсхолдера\nprompt = prompt.replace('{{CONTRACT_TEXT}}', $json.contractText);\n\nreturn {\n  json: {\n    userId: $json.userId,\n    contractText: $json.contractText,\n    prompt,\n  }\n}"
+      },
+      "id": "load-prompt",
+      "name": "Загрузка промпта",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4",
+        "temperature": 0.2,
+        "maxTokens": 4000,
+        "options": {
+          "frequencyPenalty": 0,
+          "presencePenalty": 0,
+          "topP": 1
+        }
+      },
+      "id": "openai-call",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [900, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Парсинг JSON ответа от AI\nconst content = $json.content;\n\ntry {\n  // Попытка распарсить JSON\n  const analysisResult = JSON.parse(content);\n  \n  // Валидация структуры\n  if (!analysisResult.risks || !Array.isArray(analysisResult.risks)) {\n    throw new Error('Неверная структура ответа: отсутствует risks');\n  }\n  \n  // Определение общего уровня риска\n  let overallRisk = 'low';\n  const severities = analysisResult.risks.map(r => r.severity);\n  \n  if (severities.includes('critical')) {\n    overallRisk = 'critical';\n  } else if (severities.includes('high')) {\n    overallRisk = 'high';\n  } else if (severities.includes('medium')) {\n    overallRisk = 'medium';\n  }\n  \n  return {\n    json: {\n      userId: $json.userId,\n      analysis: {\n        summary: analysisResult.summary || 'Анализ завершён',\n        risk_level: overallRisk,\n        risks: analysisResult.risks,\n        recommendations: analysisResult.recommendations || [],\n      },\n      tokensUsed: $json.usage?.total_tokens || 0,\n      timestamp: new Date().toISOString(),\n    }\n  };\n} catch (error) {\n  // Если не удалось распарсить JSON, создаём структуру вручную\n  return {\n    json: {\n      userId: $json.userId,\n      analysis: {\n        summary: 'Анализ завершён',\n        risk_level: 'medium',\n        risks: [],\n        recommendations: ['Рекомендуется ручная проверка договора'],\n      },\n      tokensUsed: $json.usage?.total_tokens || 0,\n      timestamp: new Date().toISOString(),\n      rawContent: content,\n    }\n  };\n}"
+      },
+      "id": "parse-response",
+      "name": "Парсинг ответа",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Форматирование финального ответа\nconst response = {\n  contract_review_id: require('uuid').v4(),\n  status: 'completed',\n  analysis: $json.analysis,\n  tokens_used: $json.tokensUsed,\n  created_at: $json.timestamp,\n};\n\nreturn {\n  json: response\n}"
+      },
+      "id": "format-response",
+      "name": "Форматирование",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Извлечение текста",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Извлечение текста": {
+      "main": [
+        [
+          {
+            "node": "Загрузка промпта",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Загрузка промпта": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Парсинг ответа",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Парсинг ответа": {
+      "main": [
+        [
+          {
+            "node": "Форматирование",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Форматирование": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["law-ai", "contracts"],
+  "triggerCount": 1,
+  "updatedAt": "2026-04-05T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -4,13 +4,18 @@ from sqlalchemy import select, func
 from typing import List
 from decimal import Decimal
 from datetime import datetime
+from datetime import date as date_type
 import uuid
 import json
+import secrets
+import string
+from pydantic import BaseModel
 
 from app.database import get_db
 from app.models.user import User
 from app.models.payment import Payment, PaymentStatus
 from app.models.subscription import Subscription, SubscriptionPlan, SubscriptionStatus
+from app.models.activation_code import ActivationCode
 from app.schemas.payment import (
     PaymentResponse,
     PaymentPlan,
@@ -20,6 +25,7 @@ from app.schemas.payment import (
     PaymentHistoryItem,
 )
 from app.services.usage_limit_service import usage_limit_service
+from app.services.telegram_notifier import telegram_notifier
 from app.middleware.auth import get_current_user
 from app.config import settings
 
@@ -67,7 +73,7 @@ PLANS = [
         ),
     ),
     PaymentPlan(
-        id=SubscriptionPlan.ENTERPRISE,
+        id=SubscriptionPlan.BUSINESS,
         name="Корпоративный",
         price=Decimal("9990"),
         currency="RUB",
@@ -107,7 +113,7 @@ async def subscribe(
     """
     Оформить подписку на тарифный план.
     
-    - **plan_id**: ID тарифного плана (basic, pro, enterprise)
+    - **plan_id**: ID тарифного плана (basic, pro, business)
     - **payment_method**: Способ оплаты (card)
     """
     plan_id = subscribe_data.plan_id
@@ -269,4 +275,165 @@ async def payment_history(
         page=page,
         limit=limit,
     )
+
+
+# ========== Коды активации подписки ==========
+
+class GenerateCodeResponse(BaseModel):
+    code: str
+    plan_id: str
+    months: int
+
+
+@router.post(
+    "/admin/generate-code",
+    response_model=GenerateCodeResponse,
+    summary="Сгенерировать код активации (админ)",
+)
+async def admin_generate_code(
+    plan_id: str = "pro",
+    months: int = 1,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Сгенерировать код активации подписки и сохранить в БД.
+    """
+    import secrets
+    import string
+    
+    # Генерируем уникальный код
+    while True:
+        code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        # Проверяем что код уникален
+        existing = await db.execute(select(ActivationCode).where(ActivationCode.code == code))
+        if not existing.scalar_one_or_none():
+            break
+    
+    # Сохраняем в БД
+    activation_code = ActivationCode(
+        code=code,
+        plan_id=plan_id,
+        months=months,
+    )
+    db.add(activation_code)
+    await db.commit()
+    
+    return GenerateCodeResponse(
+        code=code,
+        plan_id=plan_id,
+        months=months,
+    )
+
+
+class ActivateCodeRequest(BaseModel):
+    code: str
+
+
+@router.post(
+    "/activate-code",
+    summary="Активировать подписку по коду",
+)
+async def activate_subscription_code(
+    request: ActivateCodeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Активировать подписку по коду активации.
+    Код можно использовать только 1 раз.
+    """
+    code = request.code.upper().strip()
+    
+    # Ищем код в БД
+    result = await db.execute(
+        select(ActivationCode).where(ActivationCode.code == code)
+    )
+    activation_code = result.scalar_one_or_none()
+    
+    if not activation_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный код активации",
+        )
+    
+    if activation_code.is_used:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Этот код уже использован",
+        )
+    
+    plan_id = activation_code.plan_id
+    months = activation_code.months
+
+    # Находим подписку пользователя
+    sub_result = await db.execute(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    )
+    subscription = sub_result.scalar_one_or_none()
+
+    # Если подписки нет - создаём
+    if not subscription:
+        subscription = Subscription(
+            user_id=current_user.id,
+            plan_type=SubscriptionPlan.FREE.value,
+            status=SubscriptionStatus.ACTIVE,
+        )
+        db.add(subscription)
+        await db.flush()
+    
+    from datetime import date as date_type
+    import calendar
+
+    # Рассчитываем дату окончания подписки
+    today = date_type.today()
+    year = today.year
+    month = today.month + months
+    
+    # Переносим год если месяц > 12
+    while month > 12:
+        year += 1
+        month -= 1
+    
+    # Последний день месяца
+    last_day = calendar.monthrange(year, month)[1]
+    end_date = date_type(year, month, min(today.day, last_day))
+
+    # Обновляем подписку
+    subscription.plan_type = plan_id
+    subscription.status = SubscriptionStatus.ACTIVE
+    subscription.end_date = end_date
+    subscription.auto_renew = True
+    
+    # Помечаем код как использованный
+    activation_code.is_used = True
+    activation_code.used_by_user_id = str(current_user.id)
+    activation_code.used_at = datetime.utcnow()
+
+    # TODO: Payment запись не создаём для SQLite (UUID проблема)
+    # В продакшене с PostgreSQL - создавать Payment
+    
+    # Обновляем лимиты
+    await usage_limit_service.update_plan_limits(
+        str(current_user.id),
+        plan_id,
+        db,
+    )
+    
+    await db.commit()
+    
+    # Уведомление в Telegram
+    try:
+        await telegram_notifier.notify_subscription_activated(
+            user_email=current_user.email,
+            plan_id=plan_id,
+            code=code,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send Telegram notification: {e}")
+    
+    return {
+        "message": "Подписка активирована!",
+        "plan_id": plan_id,
+        "end_date": subscription.end_date.isoformat(),
+    }
 

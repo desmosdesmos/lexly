@@ -83,7 +83,7 @@ export function AIConsultant() {
               }`}>
                 <div className="flex items-center gap-2 mb-2">
                   {msg.role === 'assistant' && <Sparkles className="w-4 h-4 text-indigo-400" />}
-                  <span className="text-xs text-white/40">{msg.role === 'user' ? 'Вы' : 'Lexly AI'}</span>
+                  <span className="text-xs text-white/40">{msg.role === 'user' ? 'Вы' : 'Laxly AI'}</span>
                 </div>
                 <div className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</div>
               </div>

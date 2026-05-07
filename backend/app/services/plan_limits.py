@@ -1,14 +1,15 @@
-"""Новая тарифная модель Lexly."""
+"""Тарифная модель Lexly."""
 import enum
 
 
 class SubscriptionPlan(str, enum.Enum):
     FREE = "free"
+    BASIC = "basic"
     PRO = "pro"
     BUSINESS = "business"
 
 
-# Лимиты для каждого тарифа
+# Лимиты для каждого тарифа (экономичный вариант)
 PLAN_LIMITS = {
     SubscriptionPlan.FREE: {
         "documents_per_month": 2,
@@ -16,32 +17,43 @@ PLAN_LIMITS = {
         "ai_requests_per_day": 3,
         "court_practice_per_day": 2,
         "law_monitoring_per_day": 2,
-        "tokens_per_month": 50_000,       # Soft limit
+        "tokens_per_month": 10_000,       # Soft limit
+        "has_api_access": False,
+        "has_priority": False,
+        "data_retention_days": 30,
+    },
+    SubscriptionPlan.BASIC: {
+        "documents_per_month": 15,
+        "contracts_per_month": 10,
+        "ai_requests_per_day": 20,
+        "court_practice_per_day": 10,
+        "law_monitoring_per_day": 10,
+        "tokens_per_month": 60_000,       # Soft limit
         "has_api_access": False,
         "has_priority": False,
         "data_retention_days": 90,
     },
     SubscriptionPlan.PRO: {
         "documents_per_month": 50,
-        "contracts_per_month": 15,
-        "ai_requests_per_day": -1,         # Безлимит (soft limit по токенам)
-        "court_practice_per_day": -1,
-        "law_monitoring_per_day": -1,
-        "tokens_per_month": 300_000,       # Soft limit
+        "contracts_per_month": 25,
+        "ai_requests_per_day": 100,
+        "court_practice_per_day": 50,
+        "law_monitoring_per_day": 50,
+        "tokens_per_month": 200_000,      # Soft limit
         "has_api_access": False,
         "has_priority": False,
         "data_retention_days": 365,
     },
     SubscriptionPlan.BUSINESS: {
-        "documents_per_month": -1,          # Безлимит с fair use
-        "contracts_per_month": -1,
-        "ai_requests_per_day": -1,
-        "court_practice_per_day": -1,
-        "law_monitoring_per_day": -1,
-        "tokens_per_month": 2_000_000,     # Fair use limit
+        "documents_per_month": 200,
+        "contracts_per_month": 100,
+        "ai_requests_per_day": 500,
+        "court_practice_per_day": 200,
+        "law_monitoring_per_day": 200,
+        "tokens_per_month": 1_000_000,    # Fair use limit
         "has_api_access": True,
         "has_priority": True,
-        "data_retention_days": -1,          # Бессрочно
+        "data_retention_days": -1,        # Бессрочно
     },
 }
 
@@ -53,6 +65,7 @@ def get_plan_limit(plan: SubscriptionPlan) -> dict:
 def get_plan_name_display(plan: SubscriptionPlan) -> str:
     names = {
         SubscriptionPlan.FREE: "Бесплатный",
+        SubscriptionPlan.BASIC: "Базовый",
         SubscriptionPlan.PRO: "Pro",
         SubscriptionPlan.BUSINESS: "Бизнес",
     }

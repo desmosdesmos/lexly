@@ -7,6 +7,7 @@ import { Textarea } from '../components/ui/Textarea'
 import { Select } from '../components/ui/Select'
 import { Alert } from '../components/ui/Alert'
 import { PaywallModal } from '../components/ui/PaywallModal'
+import { AIFieldHelper } from '../components/ui/AIFieldHelper'
 import { documentsAPI } from '../services/api'
 import { toast } from 'react-toastify'
 
@@ -314,41 +315,51 @@ export function DocumentGenerator() {
                 <div>
                   <h3 className="text-lg font-semibold mb-4">{documentType === 'complaint' ? 'Основания жалобы' : 'Обстоятельства дела'}</h3>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-2">{documentType === 'complaint' ? 'Обжалуемое действие *' : 'Обстоятельства дела *'}</label>
-                    <Textarea
-                      name={documentType === 'complaint' ? 'appealed_action' : 'circumstances'}
-                      placeholder={documentType === 'complaint' ? 'Опишите, какое решение/действие обжалуется' : 'Опишите ситуацию: когда был заключён договор, какие обязательства нарушены, и т.д.'}
-                      rows={4}
+                    <AIFieldHelper
                       value={formData[documentType === 'complaint' ? 'appealed_action' : 'circumstances'] || ''}
-                      onChange={handleChange}
-                      required
+                      onChange={(val) => setFormData(prev => ({...prev, [documentType === 'complaint' ? 'appealed_action' : 'circumstances']: val}))}
+                      placeholder={documentType === 'complaint' ? 'Опишите, какое решение/действие обжалуется' : 'Опишите ситуацию: когда был заключён договор, какие обязательства нарушены, и т.д.'}
+                      label={documentType === 'complaint' ? 'Обжалуемое действие *' : 'Обстоятельства дела *'}
+                      type="textarea"
+                      rows={4}
+                      context={documentType}
+                      field={documentType === 'complaint' ? 'appealed_action' : 'circumstances'}
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium mb-2">{documentType === 'complaint' ? 'Основания жалобы' : 'Правовое обоснование'}</label>
-                    <Textarea
-                      name={documentType === 'complaint' ? 'grounds' : 'legal_basis'}
-                      placeholder="Ст. 506, 506.1 ГК РФ, ст. 28 АПК РФ"
-                      rows={3}
+                    <AIFieldHelper
                       value={formData[documentType === 'complaint' ? 'grounds' : 'legal_basis'] || ''}
-                      onChange={handleChange}
+                      onChange={(val) => setFormData(prev => ({...prev, [documentType === 'complaint' ? 'grounds' : 'legal_basis']: val}))}
+                      placeholder="AI подберёт нормы на основе обстоятельств дела"
+                      label={documentType === 'complaint' ? 'Основания жалобы' : 'Правовое обоснование'}
+                      type="textarea"
+                      rows={3}
+                      context={documentType}
+                      field={documentType === 'complaint' ? 'grounds' : 'legal_basis'}
+                      circumstances={formData.circumstances || formData.appealed_action || ''}
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      Укажите статьи законов, на которые ссылаетесь (необязательно)
+                      {formData.circumstances || formData.appealed_action
+                        ? '✨ Описали обстоятельства — нажмите AI чтобы автоматически подобрать нормы'
+                        : 'Опишите обстоятельства дела выше, и AI подберёт правильные статьи законов'}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Требования *</label>
-                    <Textarea
-                      name="claims"
-                      placeholder={"Признать решение незаконным\nОтменить постановление\nКаждое требование с новой строки"}
-                      rows={3}
+                    <AIFieldHelper
                       value={formData.claims || ''}
-                      onChange={handleChange}
-                      required
+                      onChange={(val) => setFormData(prev => ({...prev, claims: val}))}
+                      placeholder="AI сформулирует требования на основе обстоятельств"
+                      label="Требования *"
+                      type="textarea"
+                      rows={3}
+                      context={documentType}
+                      field="claims"
+                      circumstances={formData.circumstances || formData.appealed_action || ''}
                     />
                     <p className="text-sm text-muted-foreground mt-1">
-                      Каждое требование с новой строки
+                      {formData.circumstances || formData.appealed_action
+                        ? '✨ Описали обстоятельства — нажмите AI чтобы сформулировать требования'
+                        : 'Опишите обстоятельства дела выше, и AI сформулирует правильные требования'}
                     </p>
                   </div>
                 </div>

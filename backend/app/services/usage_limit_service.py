@@ -21,7 +21,7 @@ PLAN_LIMITS = {
         "max_documents": 200,
         "max_contracts": 100,
     },
-    SubscriptionPlan.ENTERPRISE: {
+    SubscriptionPlan.BUSINESS: {
         "max_documents": -1,  # Безлимит
         "max_contracts": -1,
     },

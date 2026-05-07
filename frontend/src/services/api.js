@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
+const API_URL = '/api/v1';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -19,11 +19,19 @@ api.interceptors.request.use((config) => {
 })
 
 // Interceptor для обработки ошибок — НЕ редиректит на auth-эндпоинтах
-const authPaths = ['/auth/login', '/auth/register', '/auth/google', '/auth/refresh']
+const authPaths = ['/auth/login', '/auth/register', '/auth/google', '/auth/refresh', '/auth/forgot-password', '/auth/reset-password']
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    if (error.response?.status === 402) {
+      // Лимиты исчерпаны — показываем paywall
+      const detail = error.response?.data?.detail
+      const resource = typeof detail === 'object' ? detail.resource : 'documents'
+      window.dispatchEvent(new CustomEvent('limit-exceeded', { detail: { resource } }))
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401) {
       const url = error.config?.url || ''
       const isAuthPath = authPaths.some(p => url.includes(p))
@@ -53,6 +61,26 @@ export const authAPI = {
 
   googleAuth: async (credential) => {
     const response = await api.post('/auth/google', { credential })
+    return response.data
+  },
+
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email })
+    return response.data
+  },
+
+  sendVerificationCode: async (email) => {
+    const response = await api.post('/auth/send-verification-code', { email })
+    return response.data
+  },
+
+  verifyEmail: async ({ email, code }) => {
+    const response = await api.post('/auth/verify-email', { email, code })
+    return response.data
+  },
+
+  resetPassword: async (token, new_password) => {
+    const response = await api.post('/auth/reset-password', { token, new_password })
     return response.data
   },
 

@@ -1,9 +1,17 @@
-import { clsx } from 'clsx'
-
-export function Textarea({ className = '', ...props }) {
+export function Textarea({ className = '', rows = 3, ...props }) {
   return (
     <textarea
-      className={clsx('glass-textarea', className)}
+      rows={rows}
+      className={`
+        bg-white/[0.06] border border-white/[0.06]
+        rounded-xl px-4 py-3 text-[15px]
+        text-white placeholder:text-white/30
+        focus:bg-white/[0.08] focus:border-[#0A84FF]
+        focus:ring-4 focus:ring-[#0A84FF]/10
+        outline-none transition-all duration-150 ease-out
+        backdrop-blur-[8px] resize-y
+        ${className}
+      `}
       {...props}
     />
   )

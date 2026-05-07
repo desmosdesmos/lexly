@@ -8,13 +8,18 @@ import api from '../services/api'
 export function DashboardHome() {
   const { user } = useAuth()
   const [usage, setUsage] = useState(null)
+  const [recentDocs, setRecentDocs] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const loadUsage = async () => {
       try {
-        const data = await api.get('/user/usage')
-        setUsage(data)
+        const [usageData, docsData] = await Promise.all([
+          api.get('/user/usage'),
+          api.get('/documents', { params: { page: 1, limit: 5 } }).catch(() => ({ data: { items: [] } }))
+        ])
+        setUsage(usageData)
+        setRecentDocs(docsData.data.items || [])
       } catch (error) {
         console.error('Failed to load usage:', error)
       } finally {
@@ -155,11 +160,42 @@ export function DashboardHome() {
           </h2>
         </CardHeader>
         <CardBody>
-          <div className="text-center py-12">
-            <Clock className="w-10 h-10 mx-auto mb-3 text-white/10" />
-            <p className="text-white/30 text-sm">История пуста</p>
-            <p className="text-white/20 text-xs mt-1">Ваши действия будут отображаться здесь</p>
-          </div>
+          {recentDocs.length === 0 ? (
+            <div className="text-center py-12">
+              <Clock className="w-10 h-10 mx-auto mb-3 text-white/10" />
+              <p className="text-white/30 text-sm">История пуста</p>
+              <p className="text-white/20 text-xs mt-1">Ваши действия будут отображаться здесь</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {recentDocs.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-indigo-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium capitalize">
+                        {doc.document_type === 'claim' ? 'Исковое заявление' :
+                         doc.document_type === 'complaint' ? 'Жалоба' :
+                         doc.document_type === 'demand' ? 'Досудебная претензия' :
+                         doc.document_type}
+                      </p>
+                      <p className="text-xs text-white/40 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> {new Date(doc.created_at).toLocaleString('ru-RU')}
+                      </p>
+                    </div>
+                  </div>
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                </div>
+              ))}
+              {recentDocs.length >= 5 && (
+                <Link to="/dashboard/documents" className="block text-center text-sm text-indigo-400 hover:underline py-2">
+                  Все документы →
+                </Link>
+              )}
+            </div>
+          )}
         </CardBody>
       </Card>
     </div>

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import logging
+from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.models.user import User
@@ -15,13 +16,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/court-practice", tags=["Судебная практика"])
 
 
-@router.get(
+class CourtPracticeRequest(BaseModel):
+    topic: str = Field(..., description="Тема анализа", min_length=2)
+    additional_context: Optional[str] = Field(None, description="Дополнительный контекст")
+
+
+@router.post(
     "/analyze",
     summary="Анализ судебной практики по теме",
 )
 async def analyze_court_practice(
-    topic: str = Query(..., description="Тема анализа", min_length=2),
-    additional_context: Optional[str] = Query(None, description="Дополнительный контекст"),
+    request: CourtPracticeRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -55,15 +60,15 @@ async def analyze_court_practice(
 
     try:
         analysis = await ai_service.analyze_court_practice(
-            topic=topic,
-            additional_context=additional_context,
+            topic=request.topic,
+            additional_context=request.additional_context,
         )
 
         # Инкремент
         await limit_service.increment_court_practice(current_user.id, db)
 
         return {
-            "topic": topic,
+            "topic": request.topic,
             "analysis": analysis,
         }
         

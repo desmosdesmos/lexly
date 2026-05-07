@@ -1,0 +1,167 @@
+{
+  "name": "Document Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-generator",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Извлечение данных из запроса\nconst userData = $json.data;\nconst documentType = userData.document_type;\nconst userId = $json.user_id;\n\nreturn {\n  json: {\n    userId,\n    documentType,\n    courtName: userData.input_data.court_name,\n    plaintiff: userData.input_data.plaintiff,\n    defendant: userData.input_data.defendant,\n    circumstances: userData.input_data.circumstances,\n    legalBasis: userData.input_data.legal_basis || '',\n    claims: userData.input_data.claims.join('\\n'),\n  }\n}"
+      },
+      "id": "prepare-data",
+      "name": "Подготовка данных",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Загрузка промпта из файла\nconst fs = require('fs');\nconst path = require('path');\n\nconst documentType = $json.documentType;\nconst promptPath = path.join('/app/prompts', 'document-generator', `${documentType}.txt`);\n\nlet prompt = '';\ntry {\n  prompt = fs.readFileSync(promptPath, 'utf8');\n} catch (error) {\n  prompt = fs.readFileSync(path.join('/app/prompts', 'document-generator', 'claim.txt'), 'utf8');\n}\n\n// Замена плейсхолдеров\nprompt = prompt\n  .replace('{{COURT_NAME}}', $json.courtName)\n  .replace('{{PLAINTIFF_NAME}}', $json.plaintiff.name)\n  .replace('{{PLAINTIFF_INN}}', $json.plaintiff.inn || 'не указан')\n  .replace('{{PLAINTIFF_ADDRESS}}', $json.plaintiff.address || 'не указан')\n  .replace('{{DEFENDANT_NAME}}', $json.defendant.name)\n  .replace('{{DEFENDANT_INN}}', $json.defendant.inn || 'не указан')\n  .replace('{{DEFENDANT_ADDRESS}}', $json.defendant.address || 'не указан')\n  .replace('{{CIRCUMSTANCES}}', $json.circumstances)\n  .replace('{{LEGAL_BASIS}}', $json.legalBasis)\n  .replace('{{CLAIMS}}', $json.claims);\n\nreturn {\n  json: {\n    ...$json,\n    prompt,\n  }\n}"
+      },
+      "id": "load-prompt",
+      "name": "Загрузка промпта",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4",
+        "temperature": 0.3,
+        "maxTokens": 4000,
+        "options": {
+          "frequencyPenalty": 0,
+          "presencePenalty": 0,
+          "topP": 1
+        }
+      },
+      "id": "openai-call",
+      "name": "OpenAI",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [900, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-credentials",
+          "name": "OpenAI Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Валидация ответа AI\nconst content = $json.content;\n\n// Проверка на пустой ответ\nif (!content || content.trim().length === 0) {\n  throw new Error('AI вернул пустой ответ');\n}\n\n// Проверка на наличие ключевых слов\nconst requiredKeywords = ['иск', 'заяв', 'треб', 'суд'];\nconst hasKeywords = requiredKeywords.some(keyword => \n  content.toLowerCase().includes(keyword)\n);\n\n// Структурирование ответа\nreturn {\n  json: {\n    userId: $json.userId,\n    documentType: $json.documentType,\n    generatedContent: content,\n    status: 'completed',\n    tokensUsed: $json.usage?.total_tokens || 0,\n    timestamp: new Date().toISOString(),\n  }\n}"
+      },
+      "id": "validate-response",
+      "name": "Валидация ответа",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Форматирование финального ответа\nconst response = {\n  document_id: require('uuid').v4(),\n  status: $json.status,\n  content: $json.generatedContent,\n  tokens_used: $json.tokensUsed,\n  created_at: $json.timestamp,\n};\n\nreturn {\n  json: response\n}"
+      },
+      "id": "format-response",
+      "name": "Форматирование",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Подготовка данных",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовка данных": {
+      "main": [
+        [
+          {
+            "node": "Загрузка промпта",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Загрузка промпта": {
+      "main": [
+        [
+          {
+            "node": "OpenAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI": {
+      "main": [
+        [
+          {
+            "node": "Валидация ответа",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Валидация ответа": {
+      "main": [
+        [
+          {
+            "node": "Форматирование",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Форматирование": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["law-ai", "documents"],
+  "triggerCount": 1,
+  "updatedAt": "2026-04-05T00:00:00.000Z",
+  "versionId": "1"
+}

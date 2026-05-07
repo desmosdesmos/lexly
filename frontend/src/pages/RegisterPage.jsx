@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Scale, Loader2, Eye, EyeOff, Check, X } from 'lucide-react'
+import { Scale, Loader2, Eye, EyeOff, Mail, Lock, User, Check, X } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
-import { Card, CardBody } from '../components/ui/Card'
-import { toast } from 'react-toastify'
+import { useAuth } from '../context/AuthContext'
 import { authAPI } from '../services/api'
+import { toast } from 'react-toastify'
+import { Logo } from '../components/ui/Logo'
 
 export function RegisterPage() {
+  const { googleLogin } = useAuth()
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     password: '',
     confirm_password: '',
+    consent: false,
   })
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -22,8 +25,28 @@ export function RegisterPage() {
     const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
     if (!re.test(email)) return 'Неверный формат email'
     const domain = email.split('@')[1].toLowerCase()
-    const suspicious = ['temp', 'fake', 'test', 'aaa', 'xxx', 'qwerty']
-    if (suspicious.some(s => domain.includes(s))) return 'Используйте реальный email'
+    // Блокируем временные и фейковые почты
+    const blocked = ['temp', 'fake', 'test', 'aaa', 'xxx', 'qwerty', 'mail.ru', 'example.com', 'test.com']
+    if (blocked.some(s => domain.includes(s))) return 'Используйте реальную почту (Gmail, Yandex, Mail.ru)'
+    return ''
+  }
+
+  const validateName = (name) => {
+    if (!name || name.trim().length < 2) return 'Имя должно содержать минимум 2 символа'
+    if (name.trim().length > 50) return 'Имя слишком длинное'
+    if (/^[0-9]+$/.test(name.trim())) return 'Имя не может состоять только из цифр'
+    return ''
+  }
+
+  const validatePassword = (password) => {
+    if (password.length < 8) return 'Минимум 8 символов'
+    if (password.length > 128) return 'Пароль слишком длинный'
+    if (!/[A-Z]/.test(password)) return 'Добавьте хотя бы одну заглавную букву'
+    if (!/\d/.test(password)) return 'Добавьте хотя бы одну цифру'
+    if (!/[a-z]/.test(password)) return 'Добавьте хотя бы одну строчную букву'
+    // Проверка на слабые пароли
+    const weak = ['password', '12345678', 'qwerty123', 'admin123', 'letmein', 'welcome']
+    if (weak.includes(password.toLowerCase())) return 'Слишком слабый пароль'
     return ''
   }
 
@@ -35,31 +58,46 @@ export function RegisterPage() {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const pw = formData.password
-  const pwLevel = !pw ? 0 : pw.length < 6 ? 1 : pw.length < 8 ? 2 : (/[A-Z]/.test(pw) && /\d/.test(pw)) ? 3 : 2
-  const pwText = pwLevel === 1 ? 'Слабый' : pwLevel === 3 ? 'Хороший' : 'Средний'
-  const pwColor = pwLevel === 1 ? 'text-red-400' : pwLevel === 3 ? 'text-green-400' : 'text-yellow-400'
   const passwordsMatch = formData.password && formData.confirm_password && formData.password === formData.confirm_password
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setEmailError('')
 
+    // Валидация имени
+    const nameErr = validateName(formData.full_name)
+    if (nameErr) { toast.error(nameErr); return }
+
+    // Валидация email
     const emailErr = validateEmail(formData.email)
     if (emailErr) { setEmailError(emailErr); toast.error(emailErr); return }
+
+    // Валидация пароля
+    const pwErr = validatePassword(formData.password)
+    if (pwErr) { toast.error(pwErr); return }
+
+    // Проверка совпадения паролей
     if (formData.password !== formData.confirm_password) { toast.error('Пароли не совпадают'); return }
-    if (formData.password.length < 8) { toast.error('Пароль минимум 8 символов'); return }
+
+    // Проверка согласия
+    if (!formData.consent) {
+      toast.error('Необходимо согласие на обработку персональных данных')
+      return
+    }
 
     setLoading(true)
     try {
-      await authAPI.register({
+      const result = await authAPI.register({
         email: formData.email,
         password: formData.password,
-        full_name: formData.full_name,
+        full_name: formData.full_name.trim(),
         user_type: 'individual',
+        pdp_consent: true, // Personal Data Processing consent
       })
-      toast.success('Регистрация успешна! Теперь войдите.')
-      navigate('/login')
+      
+      const code = result.verification_code || ''
+      toast.success('Регистрация успешна!')
+      navigate(`/verify-email?email=${encodeURIComponent(formData.email)}${code ? `&code=${code}` : ''}`)
     } catch (err) {
       const msg = err.response?.data?.detail
       toast.error(typeof msg === 'string' ? msg : 'Ошибка регистрации')
@@ -71,9 +109,7 @@ export function RegisterPage() {
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true)
     try {
-      const res = await authAPI.googleAuth(credentialResponse.credential)
-      localStorage.setItem('access_token', res.access_token)
-      localStorage.setItem('refresh_token', res.refresh_token)
+      await googleLogin(credentialResponse.credential)
       toast.success('Регистрация через Google завершена!')
       navigate('/dashboard')
     } catch (err) {
@@ -83,100 +119,218 @@ export function RegisterPage() {
     }
   }
 
-  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '529068411405-lpiffe0n5pq007vfd7jvg1ne0p9qio47.apps.googleusercontent.com'
   const googleEnabled = !!GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.length > 10
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 py-12 relative">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '5s' }}></div>
-        <div className="absolute bottom-1/4 left-1/3 w-80 h-80 bg-blue-500/8 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '7s' }}></div>
-      </div>
-
-      <div className="w-full max-w-md relative animate-fadeIn">
+    <div className="min-h-screen flex items-center justify-center p-4 relative">
+      <div className="w-full max-w-md relative">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/20 mb-4">
-            <Scale className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold mb-1">Регистрация</h1>
-          <p className="text-white/40 text-sm">Создайте аккаунт бесплатно за 30 секунд</p>
+          <Link to="/" className="inline-flex items-center justify-center mb-6">
+            <Logo size="xl" />
+          </Link>
+          <h1 className="text-2xl font-bold mb-1">Создать аккаунт</h1>
+          <p className="text-white/40 text-sm">Заполните данные для регистрации</p>
         </div>
 
-        <Card>
-          <CardBody className="p-8">
-            {/* Google */}
-            {googleEnabled ? (
-              <>
-                <div className="flex justify-center mb-6">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={() => toast.error('Ошибка Google авторизации')}
-                    text="signup_with"
-                    locale="ru"
-                    shape="pill"
-                    size="large"
-                    width="100%"
-                  />
-                </div>
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="flex-1 h-px bg-white/10"></div>
-                  <span className="text-xs text-white/30">или через email</span>
-                  <div className="flex-1 h-px bg-white/10"></div>
-                </div>
-              </>
-            ) : null}
+        {/* Card */}
+        <div className="bg-[rgba(28,28,30,0.5)] backdrop-blur-[32px] border border-white/[0.06] rounded-[22px] shadow-[0_4px_24px_rgba(0,0,0,0.3)] p-8">
+          {/* Google */}
+          {googleEnabled && (
+            <>
+              <div className="flex justify-center mb-6">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => toast.error('Ошибка Google авторизации')}
+                  useOneTap
+                  text="signup_with"
+                  locale="ru"
+                  shape="pill"
+                  size="large"
+                  width="100%"
+                />
+              </div>
+              <p className="text-[10px] text-center text-white/30 mb-6">
+                Используя вход через Google, вы соглашаетесь с нашими <Link to="/terms" className="hover:underline">условиями</Link> и <Link to="/privacy" className="hover:underline">политикой ПДн</Link>
+              </p>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex-1 h-px bg-white/[0.06]"></div>
+                <span className="text-xs text-white/30">или через email</span>
+                <div className="flex-1 h-px bg-white/[0.06]"></div>
+              </div>
+            </>
+          )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/60">Имя</label>
-                <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} placeholder="Иван Иванов" className="glass-input" required />
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Full Name */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/50">Имя</label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none z-10" />
+                <input
+                  type="text"
+                  name="full_name"
+                  value={formData.full_name}
+                  onChange={handleChange}
+                  onBlur={() => {
+                    if (formData.full_name) {
+                      const err = validateName(formData.full_name)
+                      if (err) toast.error(err)
+                    }
+                  }}
+                  placeholder="Иван Иванов"
+                  className="w-full bg-white/[0.06] border border-white/[0.08] rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:border-[#0A84FF] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all"
+                  required
+                  autoComplete="name"
+                  minLength={2}
+                  maxLength={50}
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/60">Email</label>
-                <input type="email" name="email" value={formData.email} onChange={handleChange} onBlur={handleEmailBlur} placeholder="user@example.com" className="glass-input" required />
-                {emailError && <p className="mt-1 text-xs text-red-400">{emailError}</p>}
+            </div>
+
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/50">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none z-10" />
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  onBlur={handleEmailBlur}
+                  placeholder="your@email.com"
+                  className={`w-full bg-white/[0.06] border rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all ${emailError ? 'border-[#FF453A]/30' : 'border-white/[0.08] focus:border-[#0A84FF]'}`}
+                  required
+                  autoComplete="email"
+                />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/60">Пароль</label>
-                <div className="relative">
-                  <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleChange} placeholder="Минимум 8 символов" className="glass-input pr-12" required />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors">
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-                {formData.password && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all ${pwLevel === 1 ? 'w-1/3 bg-red-400' : pwLevel === 2 ? 'w-2/3 bg-yellow-400' : 'w-full bg-green-400'}`}></div>
+              {emailError && <p className="mt-1 text-xs text-[#FF453A]">{emailError}</p>}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/50">Пароль</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none z-10" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Минимум 8 символов, A-Z и цифры"
+                  className="w-full bg-white/[0.06] border border-white/[0.08] rounded-xl pl-12 pr-12 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:border-[#0A84FF] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all"
+                  required
+                  minLength={8}
+                  maxLength={128}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors z-10"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {/* Password requirements */}
+              {formData.password && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center ${formData.password.length >= 8 ? 'bg-green-500' : 'bg-white/10'}`}>
+                      {formData.password.length >= 8 && <Check className="w-3 h-3 text-white" />}
                     </div>
-                    <span className={`text-xs ${pwColor}`}>{pwText}</span>
+                    <span className="text-xs text-white/40">Минимум 8 символов</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/[A-Z]/.test(formData.password) ? 'bg-green-500' : 'bg-white/10'}`}>
+                      {/[A-Z]/.test(formData.password) && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className="text-xs text-white/40">Заглавная буква</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center ${/\d/.test(formData.password) ? 'bg-green-500' : 'bg-white/10'}`}>
+                      {/\d/.test(formData.password) && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className="text-xs text-white/40">Цифра</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/50">Подтвердите пароль</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none z-10" />
+                <input
+                  type="password"
+                  name="confirm_password"
+                  value={formData.confirm_password}
+                  onChange={handleChange}
+                  placeholder="Повторите пароль"
+                  className="w-full bg-white/[0.06] border border-white/[0.08] rounded-xl pl-12 pr-10 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:border-[#0A84FF] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all"
+                  required
+                  autoComplete="new-password"
+                />
+                {formData.confirm_password && (
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 z-10">
+                    {passwordsMatch ? (
+                      <Check className="w-5 h-5 text-green-400" />
+                    ) : (
+                      <X className="w-5 h-5 text-red-400" />
+                    )}
                   </div>
                 )}
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/60">Подтверждение пароля</label>
-                <div className="relative">
-                  <input type="password" name="confirm_password" value={formData.confirm_password} onChange={handleChange} placeholder="Повторите пароль" className="glass-input pr-10" required />
-                  {formData.confirm_password && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      {passwordsMatch ? <Check className="w-5 h-5 text-green-400" /> : <X className="w-5 h-5 text-red-400" />}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-                {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Создание...</> : 'Зарегистрироваться'}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-white/40 text-sm">
-                Уже есть аккаунт?{' '}
-                <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">Войти</Link>
-              </p>
             </div>
-          </CardBody>
-        </Card>
+
+            {/* Consent */}
+            <div className="flex items-start gap-3 py-2">
+              <div className="relative flex items-center h-5">
+                <input
+                  id="consent"
+                  type="checkbox"
+                  checked={formData.consent}
+                  onChange={(e) => setFormData(prev => ({ ...prev, consent: e.target.checked }))}
+                  className="w-4 h-4 rounded border-white/10 bg-white/5 text-[#0A84FF] focus:ring-[#0A84FF]/20 focus:ring-offset-0"
+                  required
+                />
+              </div>
+              <label htmlFor="consent" className="text-xs text-white/40 leading-normal cursor-pointer select-none">
+                Я даю согласие на <Link to="/privacy" className="text-[#0A84FF] hover:underline">обработку персональных данных</Link> и принимаю условия <Link to="/terms" className="text-[#0A84FF] hover:underline">публичной оферты</Link>
+              </label>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] text-white font-medium shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Регистрация...
+                </span>
+              ) : (
+                'Зарегистрироваться'
+              )}
+            </button>
+          </form>
+
+          {/* Login link */}
+          <div className="mt-6 text-center">
+            <p className="text-white/35 text-sm">
+              Уже есть аккаунт?{' '}
+              <Link to="/login" className="text-[#0A84FF] hover:text-[#409CFF] font-medium">
+                Войти
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

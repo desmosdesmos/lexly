@@ -11,7 +11,7 @@ class SubscriptionPlan(str, enum.Enum):
     FREE = "free"
     BASIC = "basic"
     PRO = "pro"
-    ENTERPRISE = "enterprise"
+    BUSINESS = "business"
 
 
 class SubscriptionStatus(str, enum.Enum):

@@ -19,6 +19,8 @@ class ContractReview(Base):
     risk_level = Column(String(20), default="low")
     risks = Column(Text)  # JSON as text
     recommendations = Column(Text)  # JSON as text
+    fixed_content = Column(Text)  # Исправленный текст договора
+    fixed_risks_count = Column(Integer, nullable=False, default=0)
     ai_tokens_used = Column(Integer, nullable=False, default=0)
     status = Column(String(20), nullable=False, default="pending")
     error_message = Column(Text)

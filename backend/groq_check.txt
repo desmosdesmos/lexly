@@ -1,0 +1,3 @@
+Status: 200
+Response: Здравствуйте (Zdravstvuyte).
+✅ GROQ API работает!

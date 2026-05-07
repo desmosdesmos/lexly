@@ -73,15 +73,21 @@ class LimitService:
         today = date.today().isoformat()
         reset = False
 
-        if usage.last_ai_request_date and usage.last_ai_request_date != today:
+        # Проверка для старых записей (без last_ai_request_date)
+        last_date = getattr(usage, 'last_ai_request_date', None)
+        if last_date and last_date != today:
             usage.ai_requests_today = 0
             usage.court_practice_today = 0
             usage.law_monitoring_today = 0
             reset = True
 
-        usage.last_ai_request_date = today
-        usage.last_court_practice_date = today
-        usage.last_law_monitoring_date = today
+        # Обновляем даты
+        if hasattr(usage, 'last_ai_request_date'):
+            usage.last_ai_request_date = today
+        if hasattr(usage, 'last_court_practice_date'):
+            usage.last_court_practice_date = today
+        if hasattr(usage, 'last_law_monitoring_date'):
+            usage.last_law_monitoring_date = today
         return reset
 
     @staticmethod

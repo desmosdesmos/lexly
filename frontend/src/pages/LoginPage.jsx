@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Scale, Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Scale, Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 import { useAuth } from '../context/AuthContext'
-import { Card, CardBody } from '../components/ui/Card'
 import { toast } from 'react-toastify'
-import { authAPI } from '../services/api'
+import { Logo } from '../components/ui/Logo'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -14,7 +13,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [googleLoading, setGoogleLoading] = useState(false)
-  const { login } = useAuth()
+  const { login, googleLogin } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
@@ -27,8 +26,13 @@ export function LoginPage() {
       navigate('/dashboard')
     } catch (err) {
       const msg = err.response?.data?.detail
-      const errorMsg = typeof msg === 'string' ? msg : 'Неверный email или пароль'
-      setError(errorMsg)
+      if (msg === 'email_not_verified') {
+        toast.info('Подтвердите email для входа')
+        navigate(`/verify-email?email=${encodeURIComponent(email)}`)
+      } else {
+        const errorMsg = typeof msg === 'string' ? msg : 'Неверный email или пароль'
+        setError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -38,9 +42,7 @@ export function LoginPage() {
     setGoogleLoading(true)
     setError('')
     try {
-      const res = await authAPI.googleAuth(credentialResponse.credential)
-      localStorage.setItem('access_token', res.access_token)
-      localStorage.setItem('refresh_token', res.refresh_token)
+      await googleLogin(credentialResponse.credential)
       toast.success('Вход через Google выполнен!')
       navigate('/dashboard')
     } catch (err) {
@@ -55,131 +57,134 @@ export function LoginPage() {
     setError('Ошибка Google авторизации. Попробуйте вход по email.')
   }
 
-  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '529068411405-lpiffe0n5pq007vfd7jvg1ne0p9qio47.apps.googleusercontent.com'
   const googleEnabled = !!GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.length > 10
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '4s' }}></div>
-        <div className="absolute bottom-1/3 right-1/4 w-80 h-80 bg-purple-500/8 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s' }}></div>
-      </div>
-
-      <div className="w-full max-w-md relative animate-fadeIn">
+      <div className="w-full max-w-md relative">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/20 mb-4">
-            <Scale className="w-7 h-7 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold mb-1">Вход в Lexly</h1>
-          <p className="text-white/40 text-sm">Введите данные для входа в аккаунт</p>
+          <Link to="/" className="inline-flex items-center justify-center mb-6">
+            <Logo size="xl" />
+          </Link>
+          <h1 className="text-2xl font-bold mb-1">Вход в аккаунт</h1>
+          <p className="text-white/40 text-sm">Введите данные для продолжения</p>
         </div>
 
-        <Card>
-          <CardBody className="p-8">
-            {/* Google Login */}
-            {googleEnabled ? (
-              <>
-                <div className="flex justify-center mb-6">
-                  <GoogleLogin
-                    onSuccess={handleGoogleSuccess}
-                    onError={handleGoogleError}
-                    useOneTap
-                    text="continue_with"
-                    locale="ru"
-                    shape="pill"
-                    size="large"
-                    width="100%"
-                  />
-                </div>
-
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="flex-1 h-px bg-white/10"></div>
-                  <span className="text-xs text-white/30">или по email</span>
-                  <div className="flex-1 h-px bg-white/10"></div>
-                </div>
-              </>
-            ) : (
-              <div className="p-3 rounded-xl bg-yellow-500/5 border border-yellow-500/10 text-xs text-yellow-400/70 mb-6 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <div>
-                  Google авторизация не настроена.
-                  Для настройки создайте проект на{' '}
-                  <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-300">
-                    Google Cloud Console
-                  </a>{' '}
-                  и добавьте VITE_GOOGLE_CLIENT_ID в .env
-                </div>
+        {/* Card */}
+        <div className="bg-[rgba(28,28,30,0.5)] backdrop-blur-[32px] border border-white/[0.06] rounded-[22px] shadow-[0_4px_24px_rgba(0,0,0,0.3)] p-8">
+          {/* Google */}
+          {googleEnabled ? (
+            <>
+              <div className="flex justify-center mb-6">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  useOneTap
+                  text="continue_with"
+                  locale="ru"
+                  shape="pill"
+                  size="large"
+                  width="100%"
+                />
               </div>
-            )}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex-1 h-px bg-white/[0.06]"></div>
+                <span className="text-xs text-white/30">или по email</span>
+                <div className="flex-1 h-px bg-white/[0.06]"></div>
+              </div>
+            </>
+          ) : (
+            <div className="p-3 rounded-xl bg-[#FF9F0A]/8 border border-[#FF9F0A]/15 text-xs text-[#FF9F0A] mb-6 flex items-start gap-2">
+              <span>Google авторизация не настроена</span>
+            </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/60">Email</label>
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Email */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/50">Email</label>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none z-10" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@example.com"
-                  className="glass-input"
+                  placeholder="your@email.com"
+                  className="w-full bg-white/[0.06] border border-white/[0.08] rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:border-[#0A84FF] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all"
                   required
+                  autoComplete="email"
                 />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white/60">Пароль</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="glass-input pr-12"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400 flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading || googleLoading}
-                className="btn-primary w-full py-3"
-              >
-                {loading ? (
-                  <><Loader2 className="w-5 h-5 animate-spin" /> Вход...</>
-                ) : (
-                  'Войти'
-                )}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-white/40 text-sm">
-                Нет аккаунта?{' '}
-                <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-medium">
-                  Зарегистрироваться
-                </Link>
-              </p>
             </div>
-          </CardBody>
-        </Card>
 
-        <p className="mt-6 text-center text-xs text-white/25">
-          Демо: test@law.ai / Test1234!
-        </p>
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white/50">Пароль</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/30 pointer-events-none z-10" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-white/[0.06] border border-white/[0.08] rounded-xl pl-12 pr-12 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:border-[#0A84FF] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors z-10"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Forgot password */}
+            <div className="flex justify-end">
+              <Link to="/forgot-password" className="text-sm text-[#0A84FF] hover:text-[#409CFF] transition-colors">
+                Забыли пароль?
+              </Link>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="p-3 rounded-xl bg-[#FF453A]/8 border border-[#FF453A]/15 text-sm text-[#FF453A]">
+                {error}
+              </div>
+            )}
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading || googleLoading}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] text-white font-medium shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all disabled:opacity-40 disabled:pointer-events-none"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Вход...
+                </span>
+              ) : (
+                'Войти'
+              )}
+            </button>
+          </form>
+
+          {/* Register link */}
+          <div className="mt-6 text-center">
+            <p className="text-white/35 text-sm">
+              Нет аккаунта?{' '}
+              <Link to="/register" className="text-[#0A84FF] hover:text-[#409CFF] font-medium">
+                Зарегистрироваться
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

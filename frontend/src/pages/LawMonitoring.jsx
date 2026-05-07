@@ -33,9 +33,9 @@ export function LawMonitoring() {
     setLoading(true)
     setError(null)
     try {
-      const params = {}
-      if (topic.trim()) params.topic = topic.trim()
-      const res = await api.get('/legislation/monitor', { params })
+      const res = await api.post('/legislation/monitor', {
+        topic: topic.trim() || null,
+      })
       setMonitorData(res.data)
     } catch (err) {
       setError(err.response?.data?.detail || 'Ошибка мониторинга')
@@ -72,7 +72,8 @@ export function LawMonitoring() {
           <h1 className="text-3xl font-semibold">Мониторинг законов</h1>
         </div>
         <p className="text-muted-foreground">
-          Отслеживание изменений в законодательстве
+          AI отслеживает изменения в законодательстве РФ и объясняет, как они влияют на вас. 
+          Выберите тему — AI покажет последние изменения в законах, даты вступления в силу, практические рекомендации и ссылки на источники.
         </p>
       </div>
 
@@ -197,7 +198,7 @@ export function LawMonitoring() {
                   <CardBody>
                     <div className="space-y-4">
                       {monitorData.changes.map((ch, i) => (
-                        <div key={i} className="p-5 bg-muted/50 rounded-lg border border-border/50">
+                        <div key={i} className="p-5 bg-white/5 rounded-lg border border-white/10">
                           {typeof ch === 'string' ? (
                             <p className="text-sm whitespace-pre-wrap">{ch}</p>
                           ) : (
@@ -216,7 +217,7 @@ export function LawMonitoring() {
                                     </div>
                                     <div className="flex items-center gap-3 flex-wrap">
                                       {ch.law_number && (
-                                        <span className="text-xs px-2 py-0.5 bg-muted rounded font-mono">{ch.law_number}</span>
+                                        <span className="text-xs px-2 py-0.5 bg-white/10 rounded font-mono">{ch.law_number}</span>
                                       )}
                                       {ch.effective_date && (
                                         <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -246,7 +247,7 @@ export function LawMonitoring() {
                               {ch.affected_areas && ch.affected_areas.length > 0 && (
                                 <div className="flex gap-1 flex-wrap ml-10 mt-2">
                                   {ch.affected_areas.map((area, j) => (
-                                    <span key={j} className="text-xs px-2 py-0.5 bg-muted rounded">{area}</span>
+                                    <span key={j} className="text-xs px-2 py-0.5 bg-white/10 rounded">{area}</span>
                                   ))}
                                 </div>
                               )}
@@ -271,7 +272,7 @@ export function LawMonitoring() {
                   <CardBody>
                     <div className="space-y-4">
                       {monitorData.upcoming_changes.map((ch, i) => (
-                        <div key={i} className="p-5 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-900/30">
+                        <div key={i} className="p-5 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
                           {typeof ch === 'string' ? (
                             <p className="text-sm whitespace-pre-wrap">{ch}</p>
                           ) : (
@@ -285,7 +286,7 @@ export function LawMonitoring() {
                                     </Link>
                                   )}
                                   {ch.expected_date && (
-                                    <span className="text-xs px-2 py-0.5 bg-yellow-200 dark:bg-yellow-900/40 rounded font-medium whitespace-nowrap">
+                                    <span className="text-xs px-2 py-0.5 bg-yellow-500/20 rounded font-medium whitespace-nowrap">
                                       {ch.expected_date}
                                     </span>
                                   )}
@@ -313,7 +314,7 @@ export function LawMonitoring() {
                   <CardBody>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {monitorData.sources.map((src, i) => (
-                        <Link key={i} href={src.url} className="p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+                        <Link key={i} href={src.url} className="p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
                           <p className="text-sm font-medium">{src.title}</p>
                           <p className="text-xs text-muted-foreground truncate">{src.url}</p>
                         </Link>
@@ -369,7 +370,7 @@ export function LawMonitoring() {
               <div className="mt-6 space-y-3">
                 <p className="text-sm text-muted-foreground">Найдено: {searchResults.length}</p>
                 {searchResults.map((item, i) => (
-                  <div key={i} className="p-4 bg-muted rounded-lg">
+                  <div key={i} className="p-4 bg-white/5 rounded-lg border border-white/5">
                     {typeof item === 'string' ? (
                       <p className="text-sm whitespace-pre-wrap">{item}</p>
                     ) : (

@@ -37,8 +37,8 @@ export function CaseLaw() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.get('/court-practice/analyze', {
-        params: { topic },
+      const res = await api.post('/court-practice/analyze', {
+        topic: topic.trim(),
       })
       setAnalysis(res.data)
     } catch (err) {
@@ -78,7 +78,8 @@ export function CaseLaw() {
           <h1 className="text-3xl font-semibold">Судебная практика</h1>
         </div>
         <p className="text-muted-foreground">
-          Поиск и анализ релевантных судебных решений
+          AI анализирует реальные судебные решения, выявляет тенденции и даёт рекомендации. 
+          Введите тему — AI найдёт ключевые прецеденты, статистику успешности дел и практические советы для вашей ситуации.
         </p>
       </div>
 
@@ -206,7 +207,7 @@ export function CaseLaw() {
                     <ul className="space-y-3">
                       {a.key_trends.map((t, i) => (
                         <li key={i} className="text-sm flex items-start gap-3">
-                          <span className="w-6 h-6 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
+                          <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold flex-shrink-0">{i + 1}</span>
                           <span className="leading-relaxed">{t}</span>
                         </li>
                       ))}
@@ -249,7 +250,7 @@ export function CaseLaw() {
                   <CardBody>
                     <div className="space-y-4">
                       {a.important_precedents.map((p, i) => (
-                        <div key={i} className="p-4 bg-muted/50 rounded-lg">
+                        <div key={i} className="p-4 bg-white/5 rounded-lg border border-white/5">
                           <div className="flex items-center gap-2 mb-2 flex-wrap">
                             <span className="text-xs font-medium px-2 py-0.5 bg-purple-500/10 text-purple-500 rounded">{p.court || 'Суд'}</span>
                             {p.year && <span className="text-xs text-muted-foreground">{p.year}</span>}
@@ -285,7 +286,7 @@ export function CaseLaw() {
                   <CardBody>
                     <div className="space-y-3">
                       {a.laws.map((law, i) => (
-                        <div key={i} className="flex items-start justify-between gap-3 p-3 bg-muted/30 rounded-lg">
+                        <div key={i} className="flex items-start justify-between gap-3 p-3 bg-white/5 rounded-lg">
                           <div className="flex-1">
                             <h4 className="text-sm font-medium">{law.name}</h4>
                             {law.description && <p className="text-xs text-muted-foreground mt-0.5">{law.description}</p>}
@@ -344,7 +345,7 @@ export function CaseLaw() {
                   <CardBody>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {a.sources.map((src, i) => (
-                        <Link key={i} href={src.url} className="p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+                        <Link key={i} href={src.url} className="p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
                           <p className="text-sm font-medium">{src.title}</p>
                           <p className="text-xs text-muted-foreground truncate">{src.url}</p>
                         </Link>
@@ -398,7 +399,7 @@ export function CaseLaw() {
               <div className="mt-6 space-y-3">
                 <p className="text-sm text-muted-foreground">Найдено дел: {cases.length}</p>
                 {cases.map((c, i) => (
-                  <div key={i} className="p-4 bg-muted rounded-lg">
+                  <div key={i} className="p-4 bg-white/5 rounded-lg border border-white/5">
                     <h3 className="font-medium mb-1">{c.title || 'Без названия'}</h3>
                     {c.snippet && <p className="text-sm text-muted-foreground mb-2">{c.snippet}</p>}
                     {c.meta && <p className="text-xs text-muted-foreground mb-2">{c.meta}</p>}

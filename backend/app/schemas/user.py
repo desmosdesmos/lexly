@@ -31,6 +31,8 @@ class UserCreate(BaseModel):
     phone: Optional[str] = None
     company_name: Optional[str] = None
     company_inn: Optional[str] = None
+    pdp_consent: bool = False
+    marketing_consent: bool = False
 
     @field_validator("password")
     @classmethod

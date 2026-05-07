@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import logging
 from datetime import datetime
+from pydantic import BaseModel, Field
 
 from app.database import get_db
 from app.models.user import User
@@ -16,12 +17,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/legislation", tags=["Мониторинг законодательства"])
 
 
-@router.get(
+class LegislationMonitorRequest(BaseModel):
+    topic: Optional[str] = Field(None, description="Тема мониторинга (опционально)")
+
+
+@router.post(
     "/monitor",
     summary="Мониторинг изменений законодательства",
 )
 async def monitor_legislation(
-    topic: Optional[str] = Query(None, description="Тема мониторинга (опционально)"),
+    request: LegislationMonitorRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -56,14 +61,14 @@ async def monitor_legislation(
         )
 
     try:
-        analysis = await ai_service.monitor_legislation(topic=topic)
+        analysis = await ai_service.monitor_legislation(topic=request.topic)
 
         # Инкремент
         await limit_service.increment_law_monitoring(current_user.id, db)
-        
+
         return {
             "report_date": analysis.get("report_date", datetime.now().strftime("%Y-%m-%d")),
-            "topic": topic or "Общий мониторинг",
+            "topic": request.topic or "Общий мониторинг",
             "summary": analysis.get("summary", ""),
             "changes": analysis.get("changes", []),
             "upcoming_changes": analysis.get("upcoming_changes", []),

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel, Field
 import logging
 import json
 import io
@@ -333,3 +334,128 @@ async def download_document_docx(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
     )
+
+
+# ---- AI-помощник для полей документов ----
+
+class AISuggestRequest(BaseModel):
+    mode: str = Field(..., description="Режим: 'improve' (улучшить текст) или 'generate' (сгенерировать)")
+    text: Optional[str] = Field(None, description="Текст для улучшения (для mode=improve)")
+    circumstances: Optional[str] = Field(None, description="Обстоятельства дела (для mode=generate)")
+    context: Optional[str] = Field(None, description="Тип документа (claim, complaint, demand)")
+    field: Optional[str] = Field(None, description="Какое поле улучшить/сгенерировать: 'legal_basis', 'claims', 'circumstances'")
+
+
+@router.post(
+    "/ai-suggest",
+    summary="AI-помощник: улучшение или генерация текста",
+)
+async def ai_suggest(
+    request: AISuggestRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    AI-помощник для конструктора документов.
+    
+    Режимы:
+    - improve: Улучшить текст пользователя (перевести на юридический язык)
+    - generate: Сгенерировать правовое обоснование или требования на основе обстоятельств
+    """
+    try:
+        # --- Режим: УЛУЧШЕНИЕ ТЕКСТА ---
+        if request.mode == 'improve':
+            if not request.text or len(request.text.strip()) < 10:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Введите минимум 10 символов для улучшения"
+                )
+
+            system_prompt = """Ты — AI-помощник юриста. Переводишь текст обычных людей на правильный юридический язык.
+
+ПРАВИЛА:
+1. Сохраняй ВСЕ факты пользователя
+2. Используй официально-деловой стиль
+3. Правильные юридические конструкции
+4. НЕ добавляй вымышленные факты
+5. НЕ выдумывай статьи/законы
+6. Верни ТОЛЬКО улучшенный текст"""
+
+            user_prompt = f"Улучши текст для документа типа '{request.context}'. Поле: {request.field or ''}\n\n{request.text}"
+
+        # --- Режим: ГЕНЕРАЦИЯ ПРАВОВОГО ОБОСНОВАНИЯ ---
+        elif request.mode == 'generate' and request.field == 'legal_basis':
+            if not request.circumstances or len(request.circumstances.strip()) < 20:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Сначала опишите обстоятельства дела (минимум 20 символов), чтобы AI мог подобрать нормы"
+                )
+
+            system_prompt = f"""Ты — AI-помощник юриста. На основе описания ситуации подбираешь правильные нормы законодательства РФ.
+
+КРИТИЧЕСКИЕ ПРАВИЛА:
+1. Используй ТОЛЬКО реальные, действующие нормы (ГК РФ, ГПК РФ, АПК РФ, КАС РФ, ЗоПП и др.)
+2. НЕ выдумывай статьи, законы, номера
+3. Если не уверен в конкретной статье — используй общие формулировки без номеров статей
+4. Для искового заявления (claim) — чаще всего: ст. 309, 310, 309-310 ГК РФ (обязательства), ст. 15 (убытки), ст. 395 (неустойка)
+5. Для жалобы (complaint) — ст. 218-222 КАС РФ (оспаривание решений), ст. 254 ГПК РФ
+6. Для претензии (demand) — ст. 309, 310 ГК РФ, ст. 18-29 ЗоПП
+7. Формулируй кратко, только ссылки на статьи с пояснением
+8. Верни ТОЛЬКО текст правового обоснования, без заголовков и комментариев"""
+
+            user_prompt = f"Документ: {request.context}\n\nОбстоятельства дела:\n{request.circumstances}\n\nПодбери правовое обоснование (ссылки на статьи с пояснением):"
+
+        # --- Режим: ГЕНЕРАЦИЯ ТРЕБОВАНИЙ ---
+        elif request.mode == 'generate' and request.field == 'claims':
+            if not request.circumstances or len(request.circumstances.strip()) < 20:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Сначала опишите обстоятельства дела, чтобы AI мог сформулировать требования"
+                )
+
+            system_prompt = f"""Ты — AI-помощник юриста. Формулируешь чёткие требования для искового заявления/претензии.
+
+КРИТИЧЕСКИЕ ПРАВИЛА:
+1. Требования должны быть КОНКРЕТНЫМИ и ИСПОЛНИМЫМИ
+2. Каждое требование с новой строки
+3. Для взыскания долга: "Взыскать с Ответчика задолженность в размере X руб."
+4. Для неустойки: "Взыскать неустойку/проценты за пользование чужими деньгами"
+5. Для судебных расходов: "Взыскать расходы по уплате госпошлины"
+6. НЕ выдумывай суммы — если нет конкретной суммы, используй общие формулировки
+7. Верни ТОЛЬКО текст требований, каждое с новой строки, без номеров и комментариев"""
+
+            user_prompt = f"Документ: {request.context}\n\nОбстоятельства дела:\n{request.circumstances}\n\nСформулируй требования (каждое с новой строки):"
+
+        # --- Режим: ГЕНЕРАЦИЯ ОБСТОЯТЕЛЬСТВ ---
+        elif request.mode == 'generate' and request.field == 'circumstances':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Обстоятельства дела нужно описать самостоятельно — это фактическая основа документа"
+            )
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Неизвестный режим: {request.mode} / поле: {request.field}"
+            )
+
+        result = await ai_service.generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.3,
+            max_tokens=1500,
+        )
+
+        return {
+            "mode": request.mode,
+            "field": request.field,
+            "suggested_text": result.strip(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка AI-помощника: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка AI: {str(e)}",
+        )

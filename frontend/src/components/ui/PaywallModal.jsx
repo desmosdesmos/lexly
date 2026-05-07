@@ -63,7 +63,7 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
   ]
 
   const handleUpgrade = () => {
-    toast.info('Подключение оплаты в разработке. Свяжитесь с support@lexly.ru')
+    toast.info('Подключение оплаты в разработке. Свяжитесь с support@laxlylaw.ru')
   }
 
   return (
@@ -101,7 +101,7 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
           {/* Content */}
           <div className="p-6 space-y-6">
             <p className="text-white/60 text-sm leading-relaxed">
-              Разблокируйте полный доступ к Lexly. Перейдите на Pro и получите
+              Разблокируйте полный доступ к Laxly. Перейдите на Pro и получите
               безлимитные возможности для юридической работы.
             </p>
 

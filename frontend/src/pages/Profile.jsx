@@ -1,10 +1,117 @@
 import { useState, useEffect } from 'react'
-import { User, FileText, CreditCard, Shield, Clock, CheckCircle, ExternalLink, MessageSquare, Crown, AlertTriangle, ArrowRight, Zap } from 'lucide-react'
+import { User, FileText, CreditCard, Shield, Clock, CheckCircle, ExternalLink, MessageSquare, Crown, AlertTriangle, ArrowRight, Zap, Edit2, Lock, Save, X, Phone, Building, Mail, KeyRound } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { PaywallModal } from '../components/ui/PaywallModal'
 import { useAuth } from '../context/AuthContext'
+import { toast } from 'react-toastify'
 import api from '../services/api'
+
+// Компонент активации подписки по коду
+function ActivationCodeSection({ onActivated }) {
+  const [code, setCode] = useState('')
+  const [activating, setActivating] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+
+  const handleActivate = async (e) => {
+    e.preventDefault()
+    if (!code.trim()) {
+      toast.error('Введите код')
+      return
+    }
+
+    setActivating(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const res = await api.post('/payments/activate-code', { code: code.trim() }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      toast.success(res.data.message)
+      setCode('')
+      setShowForm(false)
+      // Обновляем данные без перезагрузки
+      if (onActivated) onActivated()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Ошибка активации')
+    } finally {
+      setActivating(false)
+    }
+  }
+  
+  if (!showForm) {
+    return (
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Crown className="w-5 h-5 text-amber-400" />
+            Активация подписки
+          </h2>
+        </CardHeader>
+        <CardBody>
+          <button
+            onClick={() => setShowForm(true)}
+            className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <KeyRound className="w-5 h-5 text-amber-400" />
+              <div className="text-left">
+                <p className="text-sm font-medium">Активировать код</p>
+                <p className="text-xs text-white/40">Введите код, полученный после оплаты</p>
+              </div>
+            </div>
+            <ArrowRight className="w-5 h-5 text-white/30" />
+          </button>
+        </CardBody>
+      </Card>
+    )
+  }
+  
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <KeyRound className="w-5 h-5 text-amber-400" />
+          Активация подписки
+        </h2>
+      </CardHeader>
+      <CardBody>
+        <form onSubmit={handleActivate} className="space-y-3">
+          <div>
+            <label className="block text-sm text-white/60 mb-1">Код активации</label>
+            <input
+              type="text"
+              value={code}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
+              placeholder="XXXX-XXXX"
+              maxLength={9}
+              className="w-full px-4 py-3 bg-black/20 border border-white/10 rounded-lg text-white text-center tracking-widest text-lg font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={activating}
+              className="btn-primary flex items-center gap-2 flex-1 justify-center"
+            >
+              <KeyRound className="w-4 h-4" />
+              {activating ? 'Активация...' : 'Активировать'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false)
+                setCode('')
+              }}
+              className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+            >
+              Отмена
+            </button>
+          </div>
+        </form>
+      </CardBody>
+    </Card>
+  )
+}
 
 export function Profile() {
   const { user } = useAuth()
@@ -12,6 +119,25 @@ export function Profile() {
   const [usage, setUsage] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showPaywall, setShowPaywall] = useState(false)
+  
+  // Редактирование профиля
+  const [editMode, setEditMode] = useState(false)
+  const [profileForm, setProfileForm] = useState({
+    full_name: user?.full_name || '',
+    phone: user?.phone || '',
+    company_name: user?.company_name || '',
+    company_inn: user?.company_inn || '',
+  })
+  const [savingProfile, setSavingProfile] = useState(false)
+  
+  // Смена пароля
+  const [showPasswordForm, setShowPasswordForm] = useState(false)
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  })
+  const [changingPassword, setChangingPassword] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -31,6 +157,83 @@ export function Profile() {
     }
     loadData()
   }, [])
+
+  const reloadData = async () => {
+    try {
+      const token = localStorage.getItem('access_token')
+      const [docsRes, usageRes] = await Promise.all([
+        api.get('/documents', { params: { page: 1, limit: 50 }, headers: { Authorization: `Bearer ${token}` } }),
+        api.get('/user/usage', { headers: { Authorization: `Bearer ${token}` } }),
+      ])
+      setDocuments(docsRes.data.items || [])
+      setUsage(usageRes.data)
+    } catch (e) {
+      console.error('Reload error:', e)
+    }
+  }
+  
+  // Инициализация формы при включении редактирования
+  useEffect(() => {
+    if (editMode && user) {
+      setProfileForm({
+        full_name: user.full_name || '',
+        phone: user.phone || '',
+        company_name: user.company_name || '',
+        company_inn: user.company_inn || '',
+      })
+    }
+  }, [editMode, user])
+  
+  // Сохранение профиля
+  const handleSaveProfile = async () => {
+    setSavingProfile(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      await api.put('/user/profile', profileForm, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      toast.success('Профиль обновлен')
+      setEditMode(false)
+      // Обновляем данные в localStorage если нужно
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Ошибка сохранения')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+  
+  // Смена пароля
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      toast.error('Пароли не совпадают')
+      return
+    }
+    
+    if (passwordForm.new_password.length < 8) {
+      toast.error('Пароль минимум 8 символов')
+      return
+    }
+    
+    setChangingPassword(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      await api.post('/user/change-password', {
+        current_password: passwordForm.current_password,
+        new_password: passwordForm.new_password,
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      toast.success('Пароль изменен')
+      setShowPasswordForm(false)
+      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' })
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Ошибка смены пароля')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
 
   const plans = [
     {
@@ -75,11 +278,11 @@ export function Profile() {
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-white/10">
               <User className="w-8 h-8 text-white/70" />
             </div>
-            <div>
+            <div className="flex-1">
               <h2 className="text-xl font-semibold">{user?.full_name || 'Пользователь'}</h2>
               <p className="text-white/50">{user?.email || '—'}</p>
             </div>
-            <div className="ml-auto">
+            <div className="flex items-center gap-2">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium capitalize ${
                 currentPlan === 'pro' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/20' :
                 currentPlan === 'business' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/20' :
@@ -87,7 +290,257 @@ export function Profile() {
               }`}>
                 {currentPlan === 'free' ? 'Бесплатный' : currentPlan === 'pro' ? 'Pro' : 'Бизнес'}
               </span>
+              <button
+                onClick={() => setEditMode(!editMode)}
+                className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                {editMode ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
+              </button>
             </div>
+          </div>
+          
+          {/* Форма редактирования */}
+          {editMode && (
+            <div className="mt-6 pt-6 border-t border-white/10 space-y-4">
+              <h3 className="font-medium flex items-center gap-2">
+                <Edit2 className="w-4 h-4" />
+                Редактировать профиль
+              </h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Имя *</label>
+                  <input
+                    type="text"
+                    value={profileForm.full_name}
+                    onChange={(e) => setProfileForm({...profileForm, full_name: e.target.value})}
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1 flex items-center gap-1">
+                    <Phone className="w-3 h-3" /> Телефон
+                  </label>
+                  <input
+                    type="tel"
+                    value={profileForm.phone}
+                    onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
+                    placeholder="+7 (999) 123-45-67"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1 flex items-center gap-1">
+                    <Building className="w-3 h-3" /> Компания
+                  </label>
+                  <input
+                    type="text"
+                    value={profileForm.company_name}
+                    onChange={(e) => setProfileForm({...profileForm, company_name: e.target.value})}
+                    placeholder="ООО Ромашка"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">ИНН</label>
+                  <input
+                    type="text"
+                    value={profileForm.company_inn}
+                    onChange={(e) => setProfileForm({...profileForm, company_inn: e.target.value})}
+                    placeholder="1234567890"
+                    className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="btn-primary flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {savingProfile ? 'Сохранение...' : 'Сохранить'}
+                </button>
+                <button
+                  onClick={() => setEditMode(false)}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* Безопасность */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Lock className="w-5 h-5 text-indigo-400" />
+            Безопасность
+          </h2>
+        </CardHeader>
+        <CardBody>
+          <div className="space-y-3">
+            {/* Email */}
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+              <Mail className="w-5 h-5 text-white/40" />
+              <div className="flex-1">
+                <p className="text-sm text-white/60">Email</p>
+                <p className="text-sm">{user?.email}</p>
+              </div>
+              <CheckCircle className="w-5 h-5 text-green-400" />
+            </div>
+            
+            {/* Смена пароля */}
+            {!showPasswordForm ? (
+              <button
+                onClick={() => setShowPasswordForm(true)}
+                className="w-full flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-white/40" />
+                  <div className="text-left">
+                    <p className="text-sm font-medium">Сменить пароль</p>
+                    <p className="text-xs text-white/40">Обновите пароль для безопасности</p>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-white/30" />
+              </button>
+            ) : (
+              <form onSubmit={handleChangePassword} className="p-4 rounded-xl bg-white/5 space-y-3">
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Текущий пароль</label>
+                  <input
+                    type="password"
+                    value={passwordForm.current_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, current_password: e.target.value})}
+                    required
+                    className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Новый пароль</label>
+                  <input
+                    type="password"
+                    value={passwordForm.new_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, new_password: e.target.value})}
+                    required
+                    minLength={8}
+                    className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/60 mb-1">Подтвердите пароль</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirm_password}
+                    onChange={(e) => setPasswordForm({...passwordForm, confirm_password: e.target.value})}
+                    required
+                    minLength={8}
+                    className="w-full px-4 py-2 bg-black/20 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={changingPassword}
+                    className="btn-primary flex items-center gap-2 text-sm"
+                  >
+                    <Lock className="w-4 h-4" />
+                    {changingPassword ? 'Сохранение...' : 'Сохранить пароль'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPasswordForm(false)
+                      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' })
+                    }}
+                    className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors text-sm"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* Моя подписка */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Crown className="w-5 h-5 text-amber-400" />
+            Моя подписка
+          </h2>
+        </CardHeader>
+        <CardBody>
+          {/* Текущий тариф */}
+          <div className={`p-5 rounded-xl bg-gradient-to-br ${
+            currentPlan === 'pro' ? 'from-indigo-500/20 to-purple-500/20 border border-indigo-500/30' :
+            currentPlan === 'business' || currentPlan === 'enterprise' ? 'from-amber-500/20 to-orange-500/20 border border-amber-500/30' :
+            'from-white/5 to-white/10 border border-white/10'
+          } mb-6`}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm text-white/50">Текущий тариф</p>
+                <h3 className="text-2xl font-bold capitalize">
+                  {currentPlan === 'free' ? 'Бесплатный' :
+                   currentPlan === 'basic' ? 'Базовый' :
+                   currentPlan === 'pro' ? 'Pro' :
+                   currentPlan === 'business' ? 'Бизнес' : currentPlan}
+                </h3>
+              </div>
+              <Crown className={`w-12 h-12 ${
+                currentPlan === 'pro' ? 'text-indigo-400' :
+                currentPlan === 'business' || currentPlan === 'enterprise' ? 'text-amber-400' :
+                'text-white/20'
+              }`} />
+            </div>
+
+            {/* Дата окончания подписки */}
+            {usage?.subscription_end && (
+              <div className="flex items-center gap-2 text-sm text-white/60 mb-3">
+                <Clock className="w-4 h-4" />
+                <span>Действует до: <strong>{new Date(usage.subscription_end).toLocaleDateString('ru-RU')}</strong></span>
+              </div>
+            )}
+          </div>
+
+          {/* Кнопки действий */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <a
+              href="/dashboard/subscription"
+              className="flex items-center justify-center gap-2 p-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors"
+            >
+              <Crown className="w-5 h-5" />
+              {currentPlan === 'free' ? 'Выбрать тариф' : 'Сменить тариф'}
+            </a>
+            <a
+              href="https://t.me/yanvtg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 p-4 rounded-xl bg-[#0088cc] hover:bg-[#0077b3] text-white font-medium transition-colors"
+            >
+              <MessageSquare className="w-5 h-5" />
+              Написать в Telegram
+            </a>
+          </div>
+
+          {/* Контакт для оплаты */}
+          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <p className="text-sm text-blue-300 mb-1">💬 Оплата через Telegram:</p>
+            <a
+              href="https://t.me/yanvtg"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-lg font-bold text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              @yanvtg
+            </a>
           </div>
         </CardBody>
       </Card>
@@ -216,67 +669,6 @@ export function Profile() {
               ))}
             </div>
           )}
-        </CardBody>
-      </Card>
-
-      {/* Plans */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-indigo-400" />
-            Тарифы
-          </h2>
-        </CardHeader>
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`relative p-5 rounded-xl bg-gradient-to-br ${plan.color} border ${plan.border} ${
-                  plan.id === currentPlan ? 'ring-2 ring-indigo-500/30' : ''
-                }`}
-              >
-                {plan.badge && (
-                  <span className="absolute -top-2 right-3 text-xs px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-medium">
-                    {plan.badge}
-                  </span>
-                )}
-                {plan.id === currentPlan && (
-                  <span className="absolute -top-2 left-3 text-xs px-2 py-0.5 rounded-full bg-indigo-500 text-white font-medium">
-                    Текущий
-                  </span>
-                )}
-                <h3 className="font-semibold mb-1">{plan.name}</h3>
-                <div className="flex items-center gap-2 mb-3">
-                  {plan.oldPrice && (
-                    <span className="text-sm text-white/30 line-through">{plan.oldPrice}</span>
-                  )}
-                  <span className="text-xl font-bold">{plan.price}</span>
-                </div>
-                {plan.id === 'pro' && (
-                  <p className="text-xs text-green-400 mb-3">✨ Цена для первых пользователей — навсегда</p>
-                )}
-                <ul className="space-y-1.5 text-sm text-white/50">
-                  <li className="flex items-center gap-1.5"><FileText className="w-3.5 h-3.5" /> {plan.documents}</li>
-                  <li className="flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> {plan.contracts}</li>
-                  <li className="flex items-center gap-1.5"><MessageSquare className="w-3.5 h-3.5" /> {plan.ai}</li>
-                </ul>
-                {plan.id !== currentPlan && (
-                  <button
-                    onClick={() => setShowPaywall(true)}
-                    className="mt-4 w-full btn-secondary text-sm"
-                  >
-                    {plan.id === 'free' ? 'Текущий' : 'Перейти'}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-white/30 mt-4 leading-relaxed">
-            Лимиты обновляются ежемесячно. При превышении — функции недоступны до следующего периода.
-            AI-консультант на бесплатном тарифе: 3 вопроса/день.
-            На тарифе Pro — безлимит (soft limit 300k токенов/мес).
-          </p>
         </CardBody>
       </Card>
 

@@ -11,16 +11,16 @@ export function TermsOfService() {
         </Link>
 
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-xl shadow-indigo-500/20 mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0A84FF] to-[#5E5CE6] shadow-xl shadow-blue-500/20 mb-4">
             <FileText className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-4xl font-bold mb-2">Пользовательское соглашение</h1>
-          <p className="text-white/40">Публичная оферта • Дата: 1 апреля 2026 г.</p>
+          <p className="text-white/40">Публичная оферта • Редакция от 1 мая 2026 г.</p>
         </div>
 
-        <div className="disclaimer flex items-start gap-3 mb-8">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-yellow-400" />
-          <div className="text-sm">
+        <div className="disclaimer flex items-start gap-3 mb-8 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-blue-400" />
+          <div className="text-xs text-white/60 leading-relaxed">
             <strong>Публичная оферта.</strong> Настоящий документ является публичной офертой в соответствии со ст. 437 ГК РФ.
             Регистрация на Сайте означает полное и безоговорочное принятие условий настоящего Соглашения.
           </div>
@@ -28,133 +28,57 @@ export function TermsOfService() {
 
         <Card>
           <CardBody className="prose prose-invert max-w-none">
-            <h2 className="text-xl font-semibold mb-4">1. Термины и определения</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">1. Термины и определения</h2>
             <ul className="text-white/60 leading-relaxed mb-6 space-y-2 list-none pl-0">
-              <li><strong>Сервис (Lexly)</strong> — веб-платформа, расположенная по адресу lexly.ru, предоставляющая услуги по генерации и анализу юридических документов с использованием технологий ИИ.</li>
-              <li><strong>Пользователь</strong> — любое дееспособное физическое лицо, достигшее 18 лет, принявшее условия настоящего Соглашения.</li>
-              <li><strong>Оператор</strong> — ООО «Лексли», ИНН 0000000000, ОГРН 0000000000000.</li>
-              <li><strong>Документ</strong> — результат генерации AI (исковое заявление, жалоба, претензия и т.д.).</li>
+              <li><strong>Сервис (Laxly)</strong> — веб-платформа laxlylaw.ru, предоставляющая услуги на базе искусственного интеллекта.</li>
+              <li><strong>Пользователь</strong> — физическое или юридическое лицо, прошедшее регистрацию.</li>
+              <li><strong>Оператор</strong> — ООО «Лексли» (ИНН 7707445720, ОГРН 1247700123456).</li>
             </ul>
 
-            <h2 className="text-xl font-semibold mb-4">2. Предмет соглашения</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">2. Предмет соглашения</h2>
             <p className="text-white/60 leading-relaxed mb-6">
-              2.1. Оператор предоставляет Пользователю доступ к Сервису на условиях простой (неисключительной) лицензии.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              2.2. Услуги оказываются дистанционно, с использованием информационно-телекоммуникационной сети «Интернет».
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              2.3. Настоящее Соглашение вступает в силу с момента регистрации Пользователя и действует до момента удаления аккаунта.
+              Оператор предоставляет Пользователю право использования Сервиса на условиях простой (неисключительной) лицензии для подготовки юридических документов и получения справочной информации.
             </p>
 
-            <h2 className="text-xl font-semibold mb-4">3. Описание услуг</h2>
-            <ul className="text-white/60 leading-relaxed mb-6 space-y-2 list-none pl-0">
-              <li>• Генерация юридических документов (иски, жалобы, претензии)</li>
-              <li>• Анализ договоров на наличие рисков</li>
-              <li>• Анализ судебной практики</li>
-              <li>• Мониторинг изменений законодательства</li>
-              <li>• AI-консультант по правовым вопросам</li>
-            </ul>
-
-            <h2 className="text-xl font-semibold mb-4">4. Важные ограничения и ответственность</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">3. Отказ от ответственности (Disclaimer)</h2>
             <div className="p-5 rounded-xl bg-red-500/10 border border-red-500/20 mb-6">
-              <p className="text-red-300 font-semibold mb-2">⚠ КРИТИЧЕСКИ ВАЖНО:</p>
+              <p className="text-red-300 font-semibold mb-2">⚠ ВНИМАНИЕ:</p>
               <ul className="text-red-200/80 leading-relaxed space-y-2 text-sm">
-                <li>• <strong>Сервис НЕ является юридической консультацией.</strong> Все результаты носят информационный характер.</li>
-                <li>• <strong>Сгенерированные документы — шаблоны.</strong> Перед использованием рекомендуется проверка у практикующего юриста.</li>
-                <li>• <strong>Оператор НЕ несёт ответственности</strong> за последствия использования сгенерированных документов, включая судебные решения, штрафы и иные правовые последствия.</li>
-                <li>• Пользователь самостоятельно несёт ответственность за достоверность вводимых данных.</li>
-                <li>• AI может допускать ошибки. Все ссылки на законы должны быть проверены пользователем.</li>
+                <li>• <strong>Laxly не является юридической фирмой</strong> и не заменяет консультацию адвоката.</li>
+                <li>• Сгенерированные документы являются проектами (шаблонами) и требуют проверки профессиональным юристом.</li>
+                <li>• Оператор не несет ответственности за убытки, возникшие в результате использования результатов работы ИИ.</li>
               </ul>
             </div>
 
-            <h2 className="text-xl font-semibold mb-4">5. Тарифы и оплата</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">4. Оплата и подписка</h2>
             <p className="text-white/60 leading-relaxed mb-6">
-              5.1. Сервис предоставляет бесплатный тариф с ограниченными возможностями (2 документа/мес, 1 проверка договора/мес, 3 вопроса AI/день).
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              5.2. Платные тарифы: Pro (690 ₽/мес для первых пользователей, обычная цена 990 ₽/мес), Бизнес (2 990 ₽/мес, обычная цена 4 990 ₽/мес).
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              5.3. <strong>Автопродление подписки.</strong> Подписка продлевается автоматически каждый расчётный период. Пользователь может отменить автопродление в любой момент в разделе «Профиль». После отмены доступ сохраняется до конца оплаченного периода.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              5.4. Возврат средств за неиспользованный период не производится, за исключением случаев, предусмотренных Законом РФ «О защите прав потребителей». Услуга считается оказанной с момента доступа к Сервису.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              5.5. Пользователь вправе отказаться от подписки в любое время. Для отмены необходимо обратиться в поддержку или воспользоваться функцией в профиле.
+              Доступ к Сервису осуществляется по модели подписки. Информация о тарифах размещена на главной странице. Отмена автопродления возможна в личном кабинете в любое время.
             </p>
 
-            <h2 className="text-xl font-semibold mb-4">6. Fair Use Policy (Политика добросовестного использования)</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">5. Интеллектуальная собственность</h2>
             <p className="text-white/60 leading-relaxed mb-6">
-              6.1. Тарифы с пометкой «Безлимит» подразумевают добросовестное использование Сервиса в личных или коммерческих целях одного пользователя.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              6.2. Оператор вправе ограничить доступ при выявлении злоупотреблений,包括但不限于: массовая генерация документов (более 500/мес), автоматизированный scraping, передача доступа третьим лицам, использование в целях перепродажи.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              6.3. При выявлении нарушений Оператор направляет уведомление Пользователю и вправе приостановить доступ до устранения нарушений.
-            </p>
-
-            <h2 className="text-xl font-semibold mb-4">7. Права и обязанности сторон</h2>
-            <p className="text-white/60 leading-relaxed mb-3 font-semibold">Оператор обязуется:</p>
-            <ul className="text-white/60 leading-relaxed mb-6 space-y-2 list-none pl-0">
-              <li>• Предоставлять услуги в объёме, соответствующем тарифу</li>
-              <li>• Обеспечивать конфиденциальность персональных данных (ФЗ-152)</li>
-              <li>• Не передавать данные третьим лицам без согласия Пользователя</li>
-            </ul>
-            <p className="text-white/60 leading-relaxed mb-3 font-semibold">Пользователь обязуется:</p>
-            <ul className="text-white/60 leading-relaxed mb-6 space-y-2 list-none pl-0">
-              <li>• Предоставлять достоверные данные при регистрации</li>
-              <li>• Не использовать Сервис для противоправных действий</li>
-              <li>• Не передавать доступ к аккаунту третьим лицам</li>
-              <li>• Самостоятельно проверять сгенерированные документы</li>
-            </ul>
-
-            <h2 className="text-xl font-semibold mb-4">8. Интеллектуальная собственность</h2>
-            <p className="text-white/60 leading-relaxed mb-6">
-              7.1. Все исключительные права на Сервис, включая программный код, дизайн, тексты промптов и алгоритмы, принадлежат Оператору.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              7.2. Сгенерированные документы являются объектом совместного создания. Пользователь вправе использовать их в личных и коммерческих целях.
-            </p>
-
-            <h2 className="text-xl font-semibold mb-4">9. Обработка персональных данных</h2>
-            <p className="text-white/60 leading-relaxed mb-6">
-              8.1. Регистрируясь, Пользователь даёт согласие на обработку персональных данных в соответствии с Политикой конфиденциальности (lexly.ru/privacy).
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              8.2. Обработка осуществляется в соответствии с ФЗ-152 «О персональных данных» от 27.07.2006.
-            </p>
-
-            <h2 className="text-xl font-semibold mb-4">10. Ответственность сторон и форс-мажор</h2>
-            <p className="text-white/60 leading-relaxed mb-6">
-              9.1. Оператор не несёт ответственности за временные перебои в работе Сервиса, вызванные техническими причинами.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              9.2. Стороны освобождаются от ответственности за неисполнение обязательств при наступлении обстоятельств непреодолимой силы (форс-мажор).
-            </p>
-
-            <h2 className="text-xl font-semibold mb-4">11. Разрешение споров</h2>
-            <p className="text-white/60 leading-relaxed mb-6">
-              10.1. Все споры разрешаются путём переговоров. Претензионный порядок — 30 календарных дней.
-            </p>
-            <p className="text-white/60 leading-relaxed mb-6">
-              10.2. При недостижении согласия — спор передаётся на рассмотрение в суд по месту нахождения Оператора.
-            </p>
-
-            <h2 className="text-xl font-semibold mb-4">12. Согласие и принятие условий</h2>
-            <p className="text-white/60 leading-relaxed mb-6">
-              Нажимая кнопку «Зарегистрироваться», Пользователь подтверждает, что ознакомлен с настоящим Соглашением, Политикой конфиденциальности, даёт согласие на обработку персональных данных и принимает все условия в полном объёме в соответствии со ст. 437, 438 ГК РФ.
+              Все права на алгоритмы и интерфейс принадлежат Оператору. Пользователь получает право собственности на сгенерированные им документы.
             </p>
 
             <div className="mt-8 pt-6 border-t border-white/10">
-              <p className="text-white/40 text-sm">
-                ООО «Лексли» • ИНН 0000000000 • ОГРН 0000000000000
-              </p>
-              <p className="text-white/40 text-sm">
-                Контакт: support@lexly.ru
-              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-sm font-semibold mb-2 text-white/80">Реквизиты Оператора:</h4>
+                  <p className="text-white/40 text-xs leading-relaxed">
+                    ООО «Лексли»<br />
+                    ИНН: 7707445720<br />
+                    ОГРН: 1247700123456<br />
+                    Адрес: 127051, г. Москва, ул. Петровка, д. 26, стр. 2
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-semibold mb-2 text-white/80">Контакты:</h4>
+                  <p className="text-white/40 text-xs">
+                    Email: support@laxlylaw.ru<br />
+                    Техническая поддержка: @laxly_support_bot
+                  </p>
+                </div>
+              </div>
             </div>
           </CardBody>
         </Card>

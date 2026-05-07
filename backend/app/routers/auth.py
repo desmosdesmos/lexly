@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from datetime import datetime, timedelta
 import uuid
+import secrets
+import logging
 
 from app.database import get_db
 from app.models.user import User
@@ -17,21 +20,23 @@ from app.services.auth_service import (
     authenticate_user,
     decode_token,
 )
+from app.services.email_service import email_service
+from app.services.telegram_notifier import telegram_notifier
 from app.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Аутентификация"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
     "/register",
-    response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Регистрация пользователя",
 )
 async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     """
     Зарегистрировать нового пользователя.
-    
+
     - **email**: Email адрес
     - **password**: Пароль (минимум 8 символов, заглавные и строчные буквы, цифры)
     - **full_name**: Полное имя
@@ -40,13 +45,13 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     # Проверка, существует ли пользователь
     result = await db.execute(select(User).where(User.email == user_data.email))
     existing_user = result.scalar_one_or_none()
-    
+
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Пользователь с таким email уже существует",
         )
-    
+
     # Создание пользователя
     new_user = User(
         email=user_data.email,
@@ -56,11 +61,15 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
         phone=user_data.phone,
         company_name=user_data.company_name,
         company_inn=user_data.company_inn,
+        email_verified=False,  # Требуется подтверждение
+        pdp_consent=user_data.pdp_consent,
+        pdp_consent_date=datetime.utcnow() if user_data.pdp_consent else None,
+        marketing_consent=user_data.marketing_consent,
     )
-    
+
     db.add(new_user)
     await db.flush()
-    
+
     # Создание записей в subscription и usage_limits (через триггер или вручную)
     subscription = Subscription(
         user_id=new_user.id,
@@ -68,7 +77,7 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
         status="active",
     )
     db.add(subscription)
-    
+
     usage_limit = UsageLimit(
         user_id=new_user.id,
         plan_type="free",
@@ -76,11 +85,46 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
         max_contracts=3,
     )
     db.add(usage_limit)
-    
+
     await db.commit()
     await db.refresh(new_user)
-    
-    return new_user
+
+    # Генерируем и отправляем код подтверждения
+    try:
+        from app.services.email_service import email_service
+        code = secrets.randbelow(1000000)
+        code_str = f"{code:06d}"
+        expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+        new_user.email_verification_code = code_str
+        new_user.email_verification_code_expires = expires_at
+        await db.commit()
+
+        # Отправляем код через Resend
+        await email_service.send_verification_code(new_user.email, code_str)
+        logger.info(f"Код подтверждения отправлен на {new_user.email}: {code_str}")
+    except Exception as e:
+        logger.warning(f"Не удалось отправить код: {e}")
+
+    # Уведомление в Telegram
+    try:
+        await telegram_notifier.notify_registration(
+            user_email=new_user.email,
+            user_name=new_user.full_name,
+            user_type=new_user.user_type,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send Telegram notification: {e}")
+
+    # Возвращаем пользователя + код для фронтенда
+    return {
+        "id": str(new_user.id),
+        "email": new_user.email,
+        "full_name": new_user.full_name,
+        "user_type": new_user.user_type,
+        "email_verified": False,
+        "verification_code": code_str,  # Показываем код на случай если email не дошёл
+    }
 
 
 @router.post(
@@ -91,29 +135,45 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
 async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     """
     Аутентифицировать пользователя и вернуть токены.
-    
+
     - **email**: Email адрес
     - **password**: Пароль
     """
     user = await authenticate_user(credentials.email, credentials.password, db)
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный email или пароль",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Учётная запись деактивирована",
         )
-    
+
+    # Проверка подтверждения email
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="email_not_verified",
+        )
+
     # Создание токенов
     access_token = create_access_token(data={"sub": str(user.id)})
     refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
+
+    # Уведомление в Telegram
+    try:
+        await telegram_notifier.notify_login(
+            user_email=user.email,
+            user_name=user.full_name,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to send Telegram notification: {e}")
+
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -263,4 +323,208 @@ async def google_login(request: GoogleAuthRequest, db: AsyncSession = Depends(ge
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Ошибка Google авторизации: {str(e)}",
         )
+
+
+# ========== Восстановление пароля ==========
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
+
+# ========== Подтверждение Email кодом ==========
+
+class VerifyEmailCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class ResendCodeRequest(BaseModel):
+    email: EmailStr
+
+
+@router.post(
+    "/send-verification-code",
+    summary="Отправить код подтверждения email",
+    status_code=status.HTTP_200_OK,
+)
+async def send_verification_code(
+    request: ResendCodeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Отправить 6-значный код на email для подтверждения."""
+    result = await db.execute(select(User).where(User.email == request.email))
+    user = result.scalar_one_or_none()
+
+    if not user or user.email_verified:
+        return {"message": "ok"}
+
+    # Генерируем 6-значный код
+    code = secrets.randbelow(1000000)
+    code_str = f"{code:06d}"
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    user.email_verification_code = code_str
+    user.email_verification_code_expires = expires_at
+    await db.commit()
+
+    # Отправляем письмо с кодом
+    email_sent = await email_service.send_verification_code(request.email, code_str)
+
+    if not email_sent:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Не удалось отправить код подтверждения: {request.email}. "
+            f"Код: {code_str} (для тестирования)"
+        )
+
+    return {"message": "Код отправлен на email"}
+
+
+@router.post(
+    "/verify-email",
+    summary="Подтвердить email кодом",
+    status_code=status.HTTP_200_OK,
+)
+async def verify_email(
+    request: VerifyEmailCodeRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Проверить код и подтвердить email."""
+    result = await db.execute(select(User).where(User.email == request.email))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь не найден",
+        )
+
+    if user.email_verified:
+        return {"message": "Email уже подтверждён"}
+
+    # Проверяем код
+    if not user.email_verification_code or user.email_verification_code != request.code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный код подтверждения",
+        )
+
+    # Проверяем срок действия
+    if user.email_verification_code_expires and user.email_verification_code_expires < datetime.utcnow():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Код истёк. Запросите новый.",
+        )
+
+    # Подтверждаем email
+    user.email_verified = True
+    user.email_verification_code = None
+    user.email_verification_code_expires = None
+    await db.commit()
+
+    return {"message": "Email успешно подтверждён!"}
+
+
+@router.post(
+    "/forgot-password",
+    summary="Запрос на восстановление пароля",
+    status_code=status.HTTP_200_OK,
+)
+async def forgot_password(
+    request: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Отправить письмо для восстановления пароля.
+
+    - **email**: Email адрес пользователя
+    """
+    # Ищем пользователя
+    result = await db.execute(select(User).where(User.email == request.email))
+    user = result.scalar_one_or_none()
+
+    # Всегда возвращаем 200 (не раскрываем существует ли пользователь)
+    if not user or not user.is_active:
+        return {
+            "message": "Если пользователь с таким email существует, письмо отправлено"
+        }
+
+    # Генерируем токен сброса
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+
+    # Сохраняем в БД
+    user.password_reset_token = reset_token
+    user.password_reset_expires_at = expires_at
+    await db.commit()
+
+    # Формируем ссылку (frontend URL)
+    frontend_url = "https://laxlylaw.ru"
+    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+
+    # Отправляем письмо
+    email_sent = await email_service.send_password_reset(request.email, reset_link)
+
+    if not email_sent:
+        # Если email не отправлен, логируем но не показываем ошибку пользователю
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            f"Не удалось отправить email для сброса пароля: {request.email}. "
+            f"Токен: {reset_token} (для тестирования)"
+        )
+
+    return {"message": "Если пользователь с таким email существует, письмо отправлено"}
+
+
+@router.post(
+    "/reset-password",
+    summary="Сброс пароля",
+    status_code=status.HTTP_200_OK,
+)
+async def reset_password(
+    request: PasswordResetConfirm,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Установить новый пароль по токену.
+
+    - **token**: Токен сброса пароля
+    - **new_password**: Новый пароль (минимум 8 символов)
+    """
+    # Ищем пользователя по токену
+    result = await db.execute(
+        select(User).where(
+            User.password_reset_token == request.token,
+            User.password_reset_expires_at > datetime.utcnow(),
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Неверный или просроченный токен",
+        )
+
+    # Валидация пароля
+    if len(request.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пароль должен содержать минимум 8 символов",
+        )
+
+    # Устанавливаем новый пароль
+    user.password_hash = hash_password(request.new_password)
+    user.password_reset_token = None
+    user.password_reset_expires_at = None
+    await db.commit()
+
+    return {"message": "Пароль успешно изменен"}
 

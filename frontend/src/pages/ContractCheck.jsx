@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { FileText, Upload, AlertCircle, CheckCircle, Loader2, Shield, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { FileText, Upload, AlertCircle, CheckCircle, Loader2, Shield, ShieldAlert, ShieldCheck, Wand2, Copy, Download, Eye } from 'lucide-react'
 import { useDropzone } from 'react-dropzone'
 import { Card, CardBody } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -19,6 +19,9 @@ export function ContractCheck() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [fixing, setFixing] = useState(false)
+  const [fixedContent, setFixedContent] = useState(null)
+  const [showFixed, setShowFixed] = useState(false)
 
   const onDrop = useCallback((acceptedFiles) => {
     const selectedFile = acceptedFiles[0]
@@ -51,7 +54,7 @@ export function ContractCheck() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!file) {
       setError('Выберите файл для проверки')
       return
@@ -60,6 +63,8 @@ export function ContractCheck() {
     setError('')
     setLoading(true)
     setResult(null)
+    setFixedContent(null)
+    setShowFixed(false)
 
     try {
       const response = await contractsAPI.review(file)
@@ -71,6 +76,47 @@ export function ContractCheck() {
       toast.error(message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleFix = async () => {
+    if (!result?.id) {
+      toast.error('Сначала проверьте договор')
+      return
+    }
+
+    setFixing(true)
+    try {
+      const token = localStorage.getItem('access_token')
+      const res = await fetch(`/api/v1/contracts/${result.id}/fix`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ review_id: result.id }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || 'Ошибка корректировки')
+      }
+
+      const data = await res.json()
+      setFixedContent(data.fixed_content)
+      setShowFixed(true)
+      toast.success(`AI исправил ${data.fixed_risks_count} проблем в договоре!`)
+    } catch (err) {
+      toast.error(err.message || 'Ошибка AI-корректировки')
+    } finally {
+      setFixing(false)
+    }
+  }
+
+  const copyFixedContent = () => {
+    if (fixedContent) {
+      navigator.clipboard.writeText(fixedContent)
+      toast.success('Текст скопирован в буфер обмена')
     }
   }
 
@@ -121,24 +167,24 @@ export function ContractCheck() {
                 >
                   <input {...getInputProps()} />
                   {file ? (
-                    <div>
-                      <FileText className="w-12 h-12 text-accent mx-auto mb-4" />
+                    <div className="text-center">
+                      <FileText className="w-12 h-12 text-[#0A84FF] mx-auto mb-4" />
                       <h4 className="font-medium mb-1">{file.name}</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
+                      <p className="text-sm text-white/40 mb-2">
                         {(file.size / 1024).toFixed(2)} KB
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-white/40">
                         Нажмите или перетащите файл, чтобы заменить
                       </p>
                     </div>
                   ) : (
-                    <div>
-                      <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <div className="text-center">
+                      <Upload className="w-12 h-12 text-white/30 mx-auto mb-4" />
                       <h4 className="font-medium mb-1">Перетащите файл сюда</h4>
-                      <p className="text-sm text-muted-foreground mb-2">
+                      <p className="text-sm text-white/40 mb-2">
                         или нажмите для выбора
                       </p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm text-white/30">
                         Поддерживаются: PDF, DOC, DOCX (макс. 10 МБ)
                       </p>
                     </div>
@@ -229,6 +275,83 @@ export function ContractCheck() {
                     </li>
                   ))}
                 </ul>
+
+                {/* Кнопка AI: исправить */}
+                {result.analysis.risks && result.analysis.risks.length > 0 && (
+                  <div className="mt-8 pt-6 border-t border-white/10">
+                    <div className="flex items-center gap-3 mb-4">
+                      <Wand2 className="w-6 h-6 text-purple-400" />
+                      <h4 className="text-lg font-semibold">AI-корректировка</h4>
+                    </div>
+                    <p className="text-sm text-white/60 mb-4">
+                      AI автоматически исправит найденные проблемы в договоре, сохранив остальной текст без изменений.
+                      {result.analysis.risks.length > 0 && ` Будет исправлено рисков: ${result.analysis.risks.length}.`}
+                    </p>
+                    <button
+                      onClick={handleFix}
+                      disabled={fixing}
+                      className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
+                        fixing
+                          ? 'bg-purple-500/20 text-purple-300 cursor-wait'
+                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                      }`}
+                    >
+                      {fixing ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          AI исправляет...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-5 h-5" />
+                          AI: Исправить все риски ({result.analysis.risks.length})
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Исправленный договор */}
+          {showFixed && fixedContent && (
+            <Card className="mt-6 border-purple-500/30">
+              <CardBody>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-6 h-6 text-green-400" />
+                    <h3 className="text-xl font-semibold">Исправленный договор</h3>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyFixedContent}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm flex items-center gap-1.5 transition-colors"
+                    >
+                      <Copy className="w-4 h-4" />
+                      Копировать
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 bg-white/5 rounded-lg border border-white/10 max-h-96 overflow-y-auto">
+                  <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">{fixedContent}</pre>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => window.open(`/api/v1/contracts/${result.id}/download-fixed`, '_blank')}
+                    className="flex-1 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Скачать .docx
+                  </button>
+                  <button
+                    onClick={copyFixedContent}
+                    className="px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm flex items-center gap-1.5 transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                    Копировать
+                  </button>
+                </div>
               </CardBody>
             </Card>
           )}

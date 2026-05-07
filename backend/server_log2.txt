@@ -1,0 +1,40 @@
+INFO:     Started server process [10884]
+INFO:     Waiting for application startup.
+2026-04-07 01:20:35,416 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-07 01:20:35,416 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("users")
+2026-04-07 01:20:35,416 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,417 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("documents")
+2026-04-07 01:20:35,417 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,417 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("contract_reviews")
+2026-04-07 01:20:35,417 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,418 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("subscriptions")
+2026-04-07 01:20:35,418 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,418 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("usage_limits")
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("payments")
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("request_logs")
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("notifications")
+2026-04-07 01:20:35,419 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,420 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("api_keys")
+2026-04-07 01:20:35,420 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-07 01:20:35,420 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+[OK] База данных инициализирована
+2026-04-07 01:20:50,848 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-07 01:20:50,852 INFO sqlalchemy.engine.Engine SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.phone, users.company_name, users.company_inn, users.is_active, users.email_verified, users.email_verification_token, users.password_reset_token, users.password_reset_expires_at, users.last_login_at, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?
+2026-04-07 01:20:50,852 INFO sqlalchemy.engine.Engine [generated in 0.00012s] ('test@example.com',)
+2026-04-07 01:20:51,048 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:60925 - "POST /api/v1/auth/login HTTP/1.1" 200 OK
+[DEBUG] user_id from token: 5453955c-05fa-450e-a3a5-cb0fb33573e0
+[DEBUG] user_uuid for DB: 5453955c05fa450ea3a5cb0fb33573e0
+2026-04-07 01:20:51,051 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-07 01:20:51,052 INFO sqlalchemy.engine.Engine SELECT id, email, password_hash, full_name, user_type, phone, company_name, company_inn, is_active, email_verified, created_at, updated_at FROM users WHERE id = ?
+2026-04-07 01:20:51,052 INFO sqlalchemy.engine.Engine [generated in 0.00011s] ('5453955c05fa450ea3a5cb0fb33573e0',)
+[DEBUG] user_row from DB: ('5453955c05fa450ea3a5cb0fb33573e0', 'test@example.com', '$2b$12$XSZN5pI/sym5vJuH.V7VJebx/Ixwe/NZ7uP7ABSKCm4nF6s/jMNIC', 'Тест', 'INDIVIDUAL', None, None, None, 1, 0, '2026-04-06 20:53:09', '2026-04-06 20:53:09')
+2026-04-07 01:20:51,053 INFO sqlalchemy.engine.Engine COMMIT
+INFO:     127.0.0.1:60925 - "GET /api/v1/user/profile HTTP/1.1" 200 OK
