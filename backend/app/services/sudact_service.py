@@ -26,23 +26,16 @@ class SudactParser:
         query: str,
         court_type: Optional[str] = None,
         case_type: Optional[str] = None,
-        limit: int = 10,
+        limit: int = 15,
     ) -> List[Dict[str, Any]]:
         """
-        Поиск судебных дел.
-
-        Args:
-            query: Поисковый запрос
-            court_type: Тип суда (general, arbitrazh, etc.)
-            case_type: Тип дела (civil, criminal, administrative)
-            limit: Количество результатов
-
-        Returns:
-            Список дел
+        Глубокий поиск судебных дел с расширенными параметрами.
         """
+        # Очищаем запрос для Sudact
+        clean_query = quote(query)
         params = {
             "q": query,
-            "sort": "date:desc",
+            "sort": "date:desc", # Всегда самые свежие
         }
 
         if court_type:
@@ -51,7 +44,8 @@ class SudactParser:
             params["case_type"] = case_type
 
         try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
+                # Делаем несколько попыток поиска в разных разделах если нужно
                 response = await client.get(
                     self.SEARCH_URL,
                     params=params,
@@ -59,7 +53,17 @@ class SudactParser:
                 )
                 response.raise_for_status()
                 
-                return self._parse_search_results(response.text)
+                results = self._parse_search_results(response.text)
+                
+                # Если мало результатов, пробуем арбитраж
+                if len(results) < 5 and not court_type:
+                    params["court_type"] = "arbitrazh"
+                    arbitr_url = "https://sudact.ru/arbitr/doc/"
+                    resp_arb = await client.get(arbitr_url, params=params, headers=self.headers)
+                    if resp_arb.status_code == 200:
+                        results.extend(self._parse_search_results(resp_arb.text))
+                
+                return results[:limit]
                 
         except httpx.HTTPError as e:
             logger.error(f"Error searching cases: {str(e)}")
