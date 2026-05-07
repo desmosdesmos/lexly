@@ -15,6 +15,7 @@ export function RegisterPage() {
     password: '',
     confirm_password: '',
     consent: false,
+    marketing_consent: false,
   })
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -93,6 +94,7 @@ export function RegisterPage() {
         full_name: formData.full_name.trim(),
         user_type: 'individual',
         pdp_consent: true, // Personal Data Processing consent
+        marketing_consent: formData.marketing_consent,
       })
       
       const code = result.verification_code || ''
@@ -301,6 +303,21 @@ export function RegisterPage() {
               </div>
               <label htmlFor="consent" className="text-xs text-white/40 leading-normal cursor-pointer select-none">
                 Я даю согласие на <Link to="/privacy" className="text-[#0A84FF] hover:underline">обработку персональных данных</Link> и принимаю условия <Link to="/terms" className="text-[#0A84FF] hover:underline">публичной оферты</Link>
+              </label>
+            </div>
+
+            <div className="flex items-start gap-3 py-2">
+              <div className="relative flex items-center h-5">
+                <input
+                  id="marketing_consent"
+                  type="checkbox"
+                  checked={formData.marketing_consent}
+                  onChange={(e) => setFormData(prev => ({ ...prev, marketing_consent: e.target.checked }))}
+                  className="w-4 h-4 rounded border-white/10 bg-white/5 text-[#0A84FF] focus:ring-[#0A84FF]/20 focus:ring-offset-0"
+                />
+              </div>
+              <label htmlFor="marketing_consent" className="text-xs text-white/40 leading-normal cursor-pointer select-none">
+                Я согласен на получение информационной и рекламной рассылки
               </label>
             </div>
 

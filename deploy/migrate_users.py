@@ -2,7 +2,7 @@
 import sqlite3
 import os
 
-DB_PATH = '/opt/law-ai-agent/backend/law_ai_agent.db'
+DB_PATH = '/opt/law-ai-agent/backend/laxly.db'
 
 def migrate():
     if not os.path.exists(DB_PATH):
