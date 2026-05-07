@@ -62,17 +62,12 @@ async def monitor_legislation(
 
     try:
         # Сначала получаем реальные изменения для базы (grounding)
-        real_changes = await garant_parser.get_latest_changes(limit=10)
-        
-        # Если есть тема, фильтруем или ищем специфичные
         if request.topic:
-            topic_lower = request.topic.lower()
-            filtered = [
-                c for c in real_changes 
-                if topic_lower in c.get('title', '').lower() or topic_lower in c.get('description', '').lower()
-            ]
-            if filtered:
-                real_changes = filtered
+            # Если есть тема, ищем конкретно по ней
+            real_changes = await garant_parser.search_law_changes(query=request.topic, limit=10)
+        else:
+            # Если темы нет, берем общие последние изменения
+            real_changes = await garant_parser.get_latest_changes(limit=10)
 
         analysis = await ai_service.monitor_legislation(
             topic=request.topic,

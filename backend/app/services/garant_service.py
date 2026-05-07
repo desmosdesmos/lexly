@@ -119,6 +119,48 @@ class GarantParser:
             logger.error(f"Error extracting change data: {str(e)}")
             return None
 
+    async def search_law_changes(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Поиск изменений законодательства по конкретному запросу."""
+        search_url = f"{self.BASE_URL}/search/"
+        params = {"q": query}
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(search_url, params=params, headers=self.headers)
+                response.raise_for_status()
+                
+                soup = BeautifulSoup(response.text, "html.parser")
+                results = []
+                
+                # Ищем блоки результатов поиска
+                items = soup.find_all("div", class_="search-result") or soup.find_all("div", class_="item")
+                
+                for item in items[:limit]:
+                    title_tag = item.find("a")
+                    if not title_tag: continue
+                    
+                    title = title_tag.text.strip()
+                    url = title_tag.get("href", "")
+                    if url and not url.startswith("http"):
+                        url = f"{self.BASE_URL}{url}"
+                        
+                    date_tag = item.find("span", class_="date")
+                    date = date_tag.text.strip() if date_tag else ""
+                    
+                    desc_tag = item.find("div", class_="snippet") or item.find("p")
+                    description = desc_tag.text.strip() if desc_tag else ""
+                    
+                    results.append({
+                        "title": title,
+                        "url": url,
+                        "date": date,
+                        "description": description
+                    })
+                
+                return results
+        except Exception as e:
+            logger.error(f"Error searching law changes: {str(e)}")
+            return []
     async def get_legislation_review(self, date: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Получить ежедневный обзор изменений.
