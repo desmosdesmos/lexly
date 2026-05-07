@@ -63,7 +63,7 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
   ]
 
   const handleUpgrade = () => {
-    toast.info('Подключение оплаты в разработке. Свяжитесь с support@laxlylaw.ru')
+    toast.info('Подключение оплаты в разработке. Свяжитесь с desmosymail@gmail.com')
   }
 
   return (

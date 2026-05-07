@@ -65,17 +65,16 @@ export function TermsOfService() {
                 <div>
                   <h4 className="text-sm font-semibold mb-2 text-white/80">Реквизиты Оператора:</h4>
                   <p className="text-white/40 text-xs leading-relaxed">
-                    ООО «Лексли»<br />
-                    ИНН: 7707445720<br />
-                    ОГРН: 1247700123456<br />
-                    Адрес: 127051, г. Москва, ул. Петровка, д. 26, стр. 2
+                    Пащенко Егор Викторович<br />
+                    ИНН: 644011277300<br />
+                    Адрес: г. Саратов
                   </p>
                 </div>
                 <div>
                   <h4 className="text-sm font-semibold mb-2 text-white/80">Контакты:</h4>
                   <p className="text-white/40 text-xs">
-                    Email: support@laxlylaw.ru<br />
-                    Техническая поддержка: @laxly_support_bot
+                    Email: desmosymail@gmail.com<br />
+                    Техническая поддержка: @yanvtg
                   </p>
                 </div>
               </div>

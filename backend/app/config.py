@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "Laxly"
+    SMTP_FROM_NAME: str = "Пащенко Егор"
     RESEND_API_KEY: str = ""
 
     # Telegram Bot (для уведомлений админу)

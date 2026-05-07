@@ -182,7 +182,7 @@ export function RegisterPage() {
                       if (err) toast.error(err)
                     }
                   }}
-                  placeholder="Иван Иванов"
+                  placeholder="Александр Сергеевич"
                   className="w-full bg-white/[0.06] border border-white/[0.08] rounded-xl pl-12 pr-4 py-3.5 text-white placeholder-white/30 focus:bg-white/[0.08] focus:border-[#0A84FF] focus:ring-4 focus:ring-[#0A84FF]/10 outline-none transition-all"
                   required
                   autoComplete="name"
