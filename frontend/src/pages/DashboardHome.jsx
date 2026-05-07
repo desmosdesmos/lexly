@@ -107,7 +107,10 @@ export function DashboardHome() {
                 <span className="text-xs sm:text-sm text-white/50">Тариф</span>
               </div>
               <div className="text-base sm:text-lg font-semibold capitalize">
-                {usage.plan === 'free' ? 'Бесплатный' : usage.plan === 'pro' ? 'Pro' : 'Бизнес'}
+                {usage.plan === 'free' ? 'Бесплатный' : 
+                 usage.plan === 'basic' ? 'Базовый' : 
+                 usage.plan === 'pro' ? 'Pro' : 
+                 usage.plan === 'business' ? 'Бизнес' : usage.plan}
               </div>
               <Link to="/dashboard/profile" className="text-[10px] sm:text-xs text-white/40 hover:text-white/60 mt-2 inline-flex items-center gap-1">
                 Управление подпиской <ChevronRight className="w-3 h-3" />

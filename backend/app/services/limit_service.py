@@ -357,7 +357,12 @@ class LimitService:
 
         return {
             "plan": plan.value,
-            "plan_name": {"free": "Бесплатный", "pro": "Pro", "business": "Бизнес"}.get(plan.value, "Бесплатный"),
+            "plan_name": {
+                "free": "Бесплатный", 
+                "basic": "Базовый", 
+                "pro": "Pro", 
+                "business": "Бизнес"
+            }.get(plan.value, "Бесплатный"),
             "documents": {
                 "used": usage.documents_generated,
                 "max": limits['documents_per_month'],

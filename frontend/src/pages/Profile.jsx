@@ -288,9 +288,13 @@ export function Profile() {
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium capitalize ${
                 currentPlan === 'pro' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/20' :
                 currentPlan === 'business' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/20' :
+                currentPlan === 'basic' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/20' :
                 'bg-white/5 text-white/40 border border-white/10'
               }`}>
-                {currentPlan === 'free' ? 'Бесплатный' : currentPlan === 'pro' ? 'Pro' : 'Бизнес'}
+                {currentPlan === 'free' ? 'Бесплатный' : 
+                 currentPlan === 'basic' ? 'Базовый' : 
+                 currentPlan === 'pro' ? 'Pro' : 
+                 currentPlan === 'business' ? 'Бизнес' : currentPlan}
               </span>
               <button
                 onClick={() => setEditMode(!editMode)}
