@@ -39,10 +39,20 @@ export function DashboardHome() {
 
   const docPercent = usage?.limits?.documents?.max > 0
     ? Math.min((usage.limits.documents.used / usage.limits.documents.max) * 100, 100)
-    : 0
+    : (usage?.limits?.documents?.max === -1 ? 100 : 0)
   const contractPercent = usage?.limits?.contracts?.max > 0
     ? Math.min((usage.limits.contracts.used / usage.limits.contracts.max) * 100, 100)
-    : 0
+    : (usage?.limits?.contracts?.max === -1 ? 100 : 0)
+
+  const getPlanLabel = (plan) => {
+    if (!plan) return '—'
+    const p = plan.toLowerCase()
+    if (p === 'free') return 'Бесплатный'
+    if (p === 'basic') return 'Базовый'
+    if (p === 'pro') return 'Pro'
+    if (p === 'business') return 'Бизнес'
+    return plan
+  }
 
   return (
     <div className="space-y-6">
@@ -107,10 +117,7 @@ export function DashboardHome() {
                 <span className="text-xs sm:text-sm text-white/50">Тариф</span>
               </div>
               <div className="text-base sm:text-lg font-semibold capitalize">
-                {usage.plan === 'free' ? 'Бесплатный' : 
-                 usage.plan === 'basic' ? 'Базовый' : 
-                 usage.plan === 'pro' ? 'Pro' : 
-                 usage.plan === 'business' ? 'Бизнес' : usage.plan}
+                {getPlanLabel(usage.plan)}
               </div>
               <Link to="/dashboard/profile" className="text-[10px] sm:text-xs text-white/40 hover:text-white/60 mt-2 inline-flex items-center gap-1">
                 Управление подпиской <ChevronRight className="w-3 h-3" />

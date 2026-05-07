@@ -30,10 +30,13 @@ async def test_endpoint():
 )
 async def get_profile(
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Получить профиль текущего пользователя.
     """
+    usage_status = await limit_service.get_usage_status(current_user.id, db)
+    
     return {
         "id": str(current_user.id),
         "email": current_user.email,
@@ -45,6 +48,8 @@ async def get_profile(
         "is_active": bool(current_user.is_active),
         "email_verified": bool(current_user.email_verified),
         "created_at": str(current_user.created_at),
+        "subscription_type": usage_status["plan"],
+        "subscription_name": usage_status["plan_name"],
     }
 
 
