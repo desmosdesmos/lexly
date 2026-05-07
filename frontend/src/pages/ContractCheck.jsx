@@ -239,28 +239,28 @@ export function ContractCheck() {
                 <h4 className="font-semibold mb-4">Выявленные риски:</h4>
                 <div className="space-y-4">
                   {result.analysis.risks.map((risk) => (
-                    <div key={risk.id} className={`risk-item ${risk.severity}`}>
-                      <div className="flex items-start justify-between mb-2">
+                    <div key={risk.id} className={`risk-item ${risk.severity} p-4 rounded-xl bg-white/5 border border-white/5`}>
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
                           {risk.severity === 'high' || risk.severity === 'critical' ? (
                             <ShieldAlert className="w-5 h-5 text-destructive" />
                           ) : (
                             <ShieldCheck className="w-5 h-5 text-yellow-600" />
                           )}
-                          <strong>{risk.clause}</strong>
+                          <strong className="text-sm sm:text-base">{risk.clause}</strong>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs ${riskConfig[risk.severity]?.badge}`}>
+                        <span className={`self-start sm:self-auto px-2 py-1 rounded-full text-[10px] sm:text-xs font-medium ${riskConfig[risk.severity]?.badge}`}>
                           {riskConfig[risk.severity]?.label}
                         </span>
                       </div>
-                      <p className="text-sm mb-2">
-                        <strong>Условие:</strong> {risk.text}
+                      <p className="text-xs sm:text-sm mb-2">
+                        <strong className="text-white/70">Условие:</strong> {risk.text}
                       </p>
-                      <p className="text-sm mb-2">
-                        <strong>Пояснение:</strong> {risk.explanation}
+                      <p className="text-xs sm:text-sm mb-2">
+                        <strong className="text-white/70">Пояснение:</strong> {risk.explanation}
                       </p>
-                      <p className="text-sm">
-                        <strong>Рекомендация:</strong> {risk.recommendation}
+                      <p className="text-xs sm:text-sm">
+                        <strong className="text-white/70">Рекомендация:</strong> {risk.recommendation}
                       </p>
                     </div>
                   ))}
@@ -336,7 +336,7 @@ export function ContractCheck() {
                 <div className="p-4 bg-white/5 rounded-lg border border-white/10 max-h-96 overflow-y-auto">
                   <pre className="text-sm text-white/80 whitespace-pre-wrap font-sans">{fixedContent}</pre>
                 </div>
-                <div className="flex gap-2 mt-4">
+                <div className="flex flex-col sm:flex-row gap-2 mt-4">
                   <button
                     onClick={() => window.open(`/api/v1/contracts/${result.id}/download-fixed`, '_blank')}
                     className="flex-1 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2 transition-colors"
@@ -346,7 +346,7 @@ export function ContractCheck() {
                   </button>
                   <button
                     onClick={copyFixedContent}
-                    className="px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm flex items-center gap-1.5 transition-colors"
+                    className="sm:px-4 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 text-sm flex items-center justify-center gap-1.5 transition-colors"
                   >
                     <Copy className="w-4 h-4" />
                     Копировать

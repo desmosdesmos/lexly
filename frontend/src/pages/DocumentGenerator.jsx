@@ -154,17 +154,17 @@ export function DocumentGenerator() {
       {result && result.generated_content && (
         <Card>
           <CardBody>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <h3 className="text-lg font-semibold">Сгенерированный документ</h3>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(result.generated_content)
                     toast.success('Скопировано!')
                   }}
-                  className="flex items-center gap-1 px-3 py-1 text-sm bg-muted rounded-lg hover:bg-muted/80 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-muted rounded-lg hover:bg-muted/80 transition-colors"
                 >
-                  <Copy className="w-4 h-4" /> Копировать текст
+                  <Copy className="w-3.5 h-3.5" /> Копировать
                 </button>
                 <button
                   onClick={() => {
@@ -177,9 +177,9 @@ export function DocumentGenerator() {
                     URL.revokeObjectURL(url)
                     toast.success('TXT скачан!')
                   }}
-                  className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-500/10 text-blue-500 rounded-lg hover:bg-blue-500/20 transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-blue-500/10 text-blue-500 rounded-lg hover:bg-blue-500/20 transition-colors"
                 >
-                  <Download className="w-4 h-4" /> .TXT
+                  <Download className="w-3.5 h-3.5" /> .TXT
                 </button>
                 <button
                   onClick={async () => {
@@ -201,13 +201,13 @@ export function DocumentGenerator() {
                       toast.error('Ошибка скачивания DOCX')
                     }
                   }}
-                  className="flex items-center gap-1 px-3 py-1 text-sm bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors font-semibold"
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs sm:text-sm bg-accent/10 text-accent rounded-lg hover:bg-accent/20 transition-colors font-semibold"
                 >
-                  <Download className="w-4 h-4" /> Скачать .DOCX
+                  <Download className="w-3.5 h-3.5" /> .DOCX
                 </button>
               </div>
             </div>
-            <pre className="whitespace-pre-wrap bg-muted p-6 rounded-lg text-sm leading-relaxed font-sans max-h-[70vh] overflow-y-auto">
+            <pre className="whitespace-pre-wrap bg-muted p-4 sm:p-6 rounded-lg text-xs sm:text-sm leading-relaxed font-sans max-h-[60vh] sm:max-h-[70vh] overflow-y-auto">
               {result.generated_content}
             </pre>
           </CardBody>

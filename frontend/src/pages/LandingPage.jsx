@@ -27,23 +27,23 @@ export function LandingPage() {
     <div className="min-h-screen" style={{ background: isLight ? 'var(--bg-primary)' : undefined }}>
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl border-b" style={{ background: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}>
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center">
-            <Logo size="md" />
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          <Link to="/" className="flex items-center flex-shrink-0">
+            <Logo size="md" className="sm:h-10 h-8" />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={toggleMode}
-              className="p-2.5 rounded-xl transition-colors"
+              className="p-2 sm:p-2.5 rounded-xl transition-colors flex-shrink-0"
               style={{ background: isLight ? 'var(--hover-bg)' : 'transparent' }}
               title={isLight ? 'Тёмная тема' : 'Светлая тема'}
             >
-              {isLight ? <Moon className="w-5 h-5" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="w-5 h-5 text-white/60" />}
+              {isLight ? <Moon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-white/60" />}
             </button>
-            <Link to="/login" className="px-4 py-2 text-sm transition-colors" style={{ color: isLight ? 'var(--text-secondary)' : 'rgba(255,255,255,0.5)' }}>
+            <Link to="/login" className="px-2 sm:px-4 py-2 text-xs sm:text-sm transition-colors flex-shrink-0" style={{ color: isLight ? 'var(--text-secondary)' : 'rgba(255,255,255,0.5)' }}>
               Войти
             </Link>
-            <Link to="/register" className="px-5 py-2.5 text-sm text-white font-medium rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6]">
+            <Link to="/register" className="px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm text-white font-medium rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] flex-shrink-0">
               Регистрация
             </Link>
           </div>
@@ -51,17 +51,17 @@ export function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="max-w-4xl mx-auto px-4 pt-20 pb-16 text-center">
-        <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm mb-6 ${isLight ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-[#0A84FF]/8 border border-[#0A84FF]/15 text-[#0A84FF]'}`}>
-          <Sparkles className="w-4 h-4" />
+      <section className="max-w-4xl mx-auto px-4 pt-12 sm:pt-20 pb-12 sm:pb-16 text-center overflow-hidden">
+        <div className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-sm mb-6 ${isLight ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-[#0A84FF]/8 border border-[#0A84FF]/15 text-[#0A84FF]'}`}>
+          <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
           AI-юрист нового поколения
         </div>
-        <h1 className="text-4xl lg:text-6xl font-bold mb-4 tracking-tight" style={{ color: isLight ? 'var(--text-primary)' : undefined }}>
+        <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold mb-4 tracking-tight leading-tight" style={{ color: isLight ? 'var(--text-primary)' : undefined }}>
           Юридические документы
           <br />
           <span className="bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] bg-clip-text text-transparent">с помощью AI</span>
         </h1>
-        <p className="text-lg max-w-2xl mx-auto mb-8" style={{ color: 'var(--text-tertiary)' }}>
+        <p className="text-base sm:text-lg max-w-2xl mx-auto mb-8 px-4" style={{ color: 'var(--text-tertiary)' }}>
           Генерация исков, проверка договоров, анализ судебной практики — всё это с помощью искусственного интеллекта
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -140,9 +140,9 @@ export function LandingPage() {
 
       {/* CTA */}
       <section className="max-w-3xl mx-auto px-4 pb-20 text-center">
-        <div className={`p-10 rounded-[22px] border ${isLight ? 'bg-white shadow-sm border-gray-100' : 'bg-[rgba(28,28,30,0.3)] border-white/[0.04]'}`}>
-          <h2 className="text-2xl font-semibold mb-3" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>Начните бесплатно</h2>
-          <p className="text-sm mb-6" style={{ color: 'var(--text-tertiary)' }}>Без привязки карты. 2 документа бесплатно каждый месяц.</p>
+        <div className={`p-6 sm:p-10 rounded-[22px] border ${isLight ? 'bg-white shadow-sm border-gray-100' : 'bg-[rgba(28,28,30,0.3)] border-white/[0.04]'}`}>
+          <h2 className="text-xl sm:text-2xl font-semibold mb-3" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>Начните бесплатно</h2>
+          <p className="text-xs sm:text-sm mb-6" style={{ color: 'var(--text-tertiary)' }}>Без привязки карты. 2 документа бесплатно каждый месяц.</p>
           <Link to="/register" className="group px-7 py-3.5 bg-white text-black font-medium rounded-xl hover:bg-white/90 transition-all inline-flex items-center gap-2">
             Создать аккаунт
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

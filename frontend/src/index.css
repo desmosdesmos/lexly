@@ -106,6 +106,13 @@
 /* ===== BASE STYLES ===== */
 * {
   border-color: var(--glass-border);
+  box-sizing: border-box;
+}
+
+html, body {
+  overflow-x: hidden;
+  max-width: 100%;
+  position: relative;
 }
 
 html {

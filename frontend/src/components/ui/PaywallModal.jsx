@@ -78,7 +78,7 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-fadeIn">
         <div className="glass p-0 overflow-hidden">
           {/* Header */}
-          <div className="relative p-6 pb-4 border-b border-white/5">
+          <div className="relative p-4 sm:p-6 pb-3 sm:pb-4 border-b border-white/5">
             <button
               onClick={onClose}
               className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/5 transition-colors text-white/50 hover:text-white"
@@ -86,12 +86,12 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
               <X className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-                <Crown className="w-6 h-6 text-white" />
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+                <Crown className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold">Лимит исчерпан</h2>
-                <p className="text-sm text-white/50">
+                <h2 className="text-lg sm:text-xl font-semibold">Лимит исчерпан</h2>
+                <p className="text-xs sm:text-sm text-white/50">
                   Вы достигли лимита {resourceNames[resource] || 'использования'}
                 </p>
               </div>
@@ -99,7 +99,7 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
             <p className="text-white/60 text-sm leading-relaxed">
               Разблокируйте полный доступ к Laxly. Перейдите на Pro и получите
               безлимитные возможности для юридической работы.

@@ -58,58 +58,58 @@ export function DashboardHome() {
       {usage && !loading && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
-            <CardBody className="p-5">
+            <CardBody className="p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-white/50">Документы</span>
-                <span className="text-lg font-semibold">
+                <span className="text-xs sm:text-sm text-white/50">Документы</span>
+                <span className="text-base sm:text-lg font-semibold">
                   {usage.limits?.documents?.used || 0}
-                  <span className="text-white/30 text-sm"> / {usage.limits?.documents?.max === -1 ? '∞' : usage.limits?.documents?.max || 2}</span>
+                  <span className="text-white/30 text-xs sm:text-sm"> / {usage.limits?.documents?.max === -1 ? '∞' : usage.limits?.documents?.max || 2}</span>
                 </span>
               </div>
               <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <div className="h-full bg-white/30 rounded-full transition-all" style={{ width: `${docPercent}%` }}></div>
               </div>
               {docPercent >= 100 && (
-                <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                <p className="text-[10px] sm:text-xs text-red-400 mt-2 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> Лимит исчерпан
                 </p>
               )}
               {docPercent >= 80 && docPercent < 100 && (
-                <p className="text-xs text-yellow-400 mt-2">⚠ Осталось {usage.limits?.documents?.remaining || 0}</p>
+                <p className="text-[10px] sm:text-xs text-yellow-400 mt-2">⚠ Осталось {usage.limits?.documents?.remaining || 0}</p>
               )}
             </CardBody>
           </Card>
           <Card>
-            <CardBody className="p-5">
+            <CardBody className="p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-white/50">Проверки договоров</span>
-                <span className="text-lg font-semibold">
+                <span className="text-xs sm:text-sm text-white/50">Проверки договоров</span>
+                <span className="text-base sm:text-lg font-semibold">
                   {usage.limits?.contracts?.used || 0}
-                  <span className="text-white/30 text-sm"> / {usage.limits?.contracts?.max === -1 ? '∞' : usage.limits?.contracts?.max || 1}</span>
+                  <span className="text-white/30 text-xs sm:text-sm"> / {usage.limits?.contracts?.max === -1 ? '∞' : usage.limits?.contracts?.max || 1}</span>
                 </span>
               </div>
               <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
                 <div className="h-full bg-white/30 rounded-full transition-all" style={{ width: `${contractPercent}%` }}></div>
               </div>
               {contractPercent >= 100 && (
-                <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                <p className="text-[10px] sm:text-xs text-red-400 mt-2 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> Лимит исчерпан
                 </p>
               )}
               {contractPercent >= 80 && contractPercent < 100 && (
-                <p className="text-xs text-yellow-400 mt-2">⚠ Осталось {usage.limits?.contracts?.remaining || 0}</p>
+                <p className="text-[10px] sm:text-xs text-yellow-400 mt-2">⚠ Осталось {usage.limits?.contracts?.remaining || 0}</p>
               )}
             </CardBody>
           </Card>
           <Card>
-            <CardBody className="p-5">
+            <CardBody className="p-4 sm:p-5">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-white/50">Тариф</span>
+                <span className="text-xs sm:text-sm text-white/50">Тариф</span>
               </div>
-              <div className="text-lg font-semibold capitalize">
+              <div className="text-base sm:text-lg font-semibold capitalize">
                 {usage.plan === 'free' ? 'Бесплатный' : usage.plan === 'pro' ? 'Pro' : 'Бизнес'}
               </div>
-              <Link to="/dashboard/profile" className="text-xs text-white/40 hover:text-white/60 mt-2 inline-flex items-center gap-1">
+              <Link to="/dashboard/profile" className="text-[10px] sm:text-xs text-white/40 hover:text-white/60 mt-2 inline-flex items-center gap-1">
                 Управление подпиской <ChevronRight className="w-3 h-3" />
               </Link>
             </CardBody>

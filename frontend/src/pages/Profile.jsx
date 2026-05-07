@@ -274,16 +274,18 @@ export function Profile() {
       {/* User Info */}
       <Card>
         <CardBody>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-white/10">
-              <User className="w-8 h-8 text-white/70" />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-4 flex-1">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-white/10 flex-shrink-0">
+                <User className="w-8 h-8 text-white/70" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-semibold truncate">{user?.full_name || 'Пользователь'}</h2>
+                <p className="text-white/50 truncate">{user?.email || '—'}</p>
+              </div>
             </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-semibold">{user?.full_name || 'Пользователь'}</h2>
-              <p className="text-white/50">{user?.email || '—'}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium capitalize ${
+            <div className="flex items-center justify-between sm:justify-end gap-2 pt-4 sm:pt-0 border-t sm:border-t-0 border-white/5">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] sm:text-xs font-medium capitalize ${
                 currentPlan === 'pro' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/20' :
                 currentPlan === 'business' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/20' :
                 'bg-white/5 text-white/40 border border-white/10'
@@ -643,13 +645,13 @@ export function Profile() {
           ) : (
             <div className="space-y-3">
               {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-5 h-5 text-indigo-400" />
                     </div>
-                    <div>
-                      <p className="font-medium text-sm capitalize">
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm capitalize truncate">
                         {doc.document_type === 'claim' ? 'Исковое заявление' : doc.document_type === 'complaint' ? 'Жалоба' : 'Претензия'}
                       </p>
                       <p className="text-xs text-white/40 flex items-center gap-1">
@@ -657,8 +659,8 @@ export function Profile() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-1 rounded-lg bg-green-500/10 text-green-400 flex items-center gap-1">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-white/5 sm:border-none">
+                    <span className="text-[10px] px-2 py-0.5 rounded-lg bg-green-500/10 text-green-400 flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" /> Готов
                     </span>
                     <Link to="/dashboard/documents" className="text-xs text-indigo-400 hover:underline flex items-center gap-1">
