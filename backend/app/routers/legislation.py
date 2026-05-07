@@ -61,7 +61,23 @@ async def monitor_legislation(
         )
 
     try:
-        analysis = await ai_service.monitor_legislation(topic=request.topic)
+        # Сначала получаем реальные изменения для базы (grounding)
+        real_changes = await garant_parser.get_latest_changes(limit=10)
+        
+        # Если есть тема, фильтруем или ищем специфичные
+        if request.topic:
+            topic_lower = request.topic.lower()
+            filtered = [
+                c for c in real_changes 
+                if topic_lower in c.get('title', '').lower() or topic_lower in c.get('description', '').lower()
+            ]
+            if filtered:
+                real_changes = filtered
+
+        analysis = await ai_service.monitor_legislation(
+            topic=request.topic,
+            real_changes=real_changes[:5] # Передаем топ-5 для контекста
+        )
 
         # Инкремент
         await limit_service.increment_law_monitoring(current_user.id, db)
@@ -73,6 +89,7 @@ async def monitor_legislation(
             "changes": analysis.get("changes", []),
             "upcoming_changes": analysis.get("upcoming_changes", []),
             "total_changes": analysis.get("total_changes", 0),
+            "grounding_sources": real_changes[:5]
         }
         
     except Exception as e:

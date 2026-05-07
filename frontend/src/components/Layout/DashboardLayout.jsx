@@ -58,7 +58,7 @@ export function DashboardLayout() {
           backdrop-blur-xl
           border-r border-[var(--sidebar-border)]
           transform transition-transform duration-300 ease-out
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 invisible lg:visible'}
         `}
         style={{ background: 'var(--sidebar-bg)' }}
       >

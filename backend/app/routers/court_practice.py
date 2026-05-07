@@ -59,9 +59,16 @@ async def analyze_court_practice(
         )
 
     try:
+        # Сначала ищем реальные дела для базы анализа (grounding)
+        real_cases = await sudact_parser.search_cases(
+            query=request.topic,
+            limit=5,
+        )
+
         analysis = await ai_service.analyze_court_practice(
             topic=request.topic,
             additional_context=request.additional_context,
+            real_cases=real_cases,
         )
 
         # Инкремент
@@ -70,6 +77,7 @@ async def analyze_court_practice(
         return {
             "topic": request.topic,
             "analysis": analysis,
+            "grounding_cases": real_cases, # Возвращаем список дел для прозрачности
         }
         
     except Exception as e:

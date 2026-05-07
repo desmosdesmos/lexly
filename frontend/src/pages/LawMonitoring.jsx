@@ -78,26 +78,26 @@ export function LawMonitoring() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex p-1 bg-card rounded-xl w-fit border border-white/5">
         <button
           onClick={() => setActiveTab('monitor')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'monitor'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-card text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground shadow-lg'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           Обзор изменений
         </button>
         <button
           onClick={() => setActiveTab('search')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'search'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-card text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground shadow-lg'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Поиск
+          Поиск по базе (Garant)
         </button>
       </div>
 
@@ -172,15 +172,35 @@ export function LawMonitoring() {
 
               {/* Summary */}
               {monitorData.summary && (
-                <Card>
+                <Card className="border-accent/20 bg-accent/5">
                   <CardHeader>
-                    <h2 className="text-lg font-semibold">Обзор</h2>
+                    <h2 className="text-lg font-semibold">Обзор законодательства</h2>
                   </CardHeader>
                   <CardBody>
                     {typeof monitorData.summary === 'string' ? (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{monitorData.summary}</p>
+                      <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{monitorData.summary}</p>
                     ) : (
                       <pre className="text-sm whitespace-pre-wrap">{JSON.stringify(monitorData.summary, null, 2)}</pre>
+                    )}
+
+                    {monitorData.grounding_sources && monitorData.grounding_sources.length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-white/5">
+                        <p className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-3">Базовые источники анализа:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {monitorData.grounding_sources.map((src, i) => (
+                            <a 
+                              key={i} 
+                              href={src.url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-colors max-w-[200px] truncate"
+                              title={src.title}
+                            >
+                              {src.title}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </CardBody>
                 </Card>

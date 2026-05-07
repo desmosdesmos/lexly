@@ -69,6 +69,7 @@ export function CaseLaw() {
   }
 
   const a = analysis?.analysis || {}
+  const grounding = analysis?.grounding_cases || []
 
   return (
     <div className="space-y-6">
@@ -78,32 +79,31 @@ export function CaseLaw() {
           <h1 className="text-3xl font-semibold">Судебная практика</h1>
         </div>
         <p className="text-muted-foreground">
-          AI анализирует реальные судебные решения, выявляет тенденции и даёт рекомендации. 
-          Введите тему — AI найдёт ключевые прецеденты, статистику успешности дел и практические советы для вашей ситуации.
+          Профессиональный AI-анализ реальных судебных решений. Введите тему, чтобы получить обзор тенденций, прецедентов и оценку шансов на успех.
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex p-1 bg-card rounded-xl w-fit border border-white/5">
         <button
           onClick={() => setActiveTab('analysis')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'analysis'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-card text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground shadow-lg'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           AI Анализ
         </button>
         <button
           onClick={() => setActiveTab('search')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-6 py-2 rounded-lg text-sm font-medium transition-all ${
             activeTab === 'search'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-card text-muted-foreground hover:text-foreground'
+              ? 'bg-primary text-primary-foreground shadow-lg'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Поиск дел
+          Поиск дел (Sudact)
         </button>
       </div>
 
@@ -151,15 +151,35 @@ export function CaseLaw() {
             <>
               {/* Summary */}
               {a.summary && (
-                <Card>
+                <Card className="border-accent/20 bg-accent/5">
                   <CardHeader>
                     <h2 className="text-lg font-semibold flex items-center gap-2">
                       <TrendingUp className="w-5 h-5 text-accent" />
-                      Резюме
+                      Резюме анализа
                     </h2>
                   </CardHeader>
                   <CardBody>
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{a.summary}</p>
+                    <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap">{a.summary}</p>
+                    
+                    {grounding.length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-white/5">
+                        <p className="text-xs font-semibold text-white/30 uppercase tracking-wider mb-3">Базовые источники анализа:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {grounding.map((g, i) => (
+                            <a 
+                              key={i} 
+                              href={g.url} 
+                              target="_blank" 
+                              rel="noreferrer"
+                              className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/10 border border-white/5 transition-colors max-w-[200px] truncate"
+                              title={g.title}
+                            >
+                              {g.title}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </CardBody>
                 </Card>
               )}
