@@ -31,7 +31,6 @@ class LimitService:
                 max_contracts=1,
                 documents_generated=0,
                 contracts_reviewed=0,
-                tokens_used_this_month=0,
                 ai_requests_today=0,
                 court_practice_today=0,
                 law_monitoring_today=0,
@@ -102,7 +101,6 @@ class LimitService:
             if reset_month != current_month:
                 usage.documents_generated = 0
                 usage.contracts_reviewed = 0
-                usage.tokens_used_this_month = 0
                 usage.reset_date = date.today()
                 reset = True
         else:
@@ -385,10 +383,6 @@ class LimitService:
             "law_monitoring": {
                 "used": usage.law_monitoring_today,
                 "max": limits['law_monitoring_per_day'],
-            },
-            "tokens": {
-                "used": usage.tokens_used_this_month,
-                "max": limits['tokens_per_month'],
             },
         }
 

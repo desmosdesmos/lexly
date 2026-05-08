@@ -97,9 +97,8 @@ export function RegisterPage() {
         marketing_consent: formData.marketing_consent,
       })
       
-      const code = result.verification_code || ''
       toast.success('Регистрация успешна!')
-      navigate(`/verify-email?email=${encodeURIComponent(formData.email)}${code ? `&code=${code}` : ''}`)
+      navigate(`/verify-email?email=${encodeURIComponent(formData.email)}`)
     } catch (err) {
       const msg = err.response?.data?.detail
       toast.error(typeof msg === 'string' ? msg : 'Ошибка регистрации')

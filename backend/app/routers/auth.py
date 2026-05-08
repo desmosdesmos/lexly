@@ -116,14 +116,13 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         logger.warning(f"Failed to send Telegram notification: {e}")
 
-    # Возвращаем пользователя + код для фронтенда
+    # Возвращаем пользователя
     return {
         "id": str(new_user.id),
         "email": new_user.email,
         "full_name": new_user.full_name,
         "user_type": new_user.user_type,
         "email_verified": False,
-        "verification_code": code_str,  # Показываем код на случай если email не дошёл
     }
 
 

@@ -9,10 +9,9 @@ export default function VerifyEmailPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const emailFromUrl = searchParams.get('email') || ''
-  const codeFromUrl = searchParams.get('code') || ''
   
   const [email, setEmail] = useState(emailFromUrl)
-  const [code, setCode] = useState(codeFromUrl)
+  const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [step, setStep] = useState(emailFromUrl ? 'code' : 'email')
