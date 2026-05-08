@@ -64,15 +64,6 @@ export default function VerifyEmailPage() {
         </div>
 
         <div className="bg-[rgba(28,28,30,0.5)] backdrop-blur-[32px] border border-white/[0.06] rounded-[22px] shadow-[0_4px_24px_rgba(0,0,0,0.3)] p-8">
-          {/* Show code if provided */}
-          {codeFromUrl && (
-            <div className="mb-6 p-4 rounded-xl bg-[#0A84FF]/10 border border-[#0A84FF]/20 text-center">
-              <p className="text-sm text-white/60 mb-2">Ваш код подтверждения:</p>
-              <p className="text-3xl font-mono font-bold text-[#0A84FF] tracking-[8px]">{codeFromUrl}</p>
-              <p className="text-xs text-white/40 mt-2">SMTP недоступен на VPS — введите код вручную</p>
-            </div>
-          )}
-          
           {step === 'email' ? (
             <form onSubmit={handleSendCode} className="space-y-4">
               <div>
