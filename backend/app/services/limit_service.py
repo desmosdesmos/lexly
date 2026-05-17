@@ -50,7 +50,7 @@ class LimitService:
 
         # Проверить subscription_type в user model
         sub_type = getattr(user, 'subscription_type', None)
-        if sub_type in ('free', 'pro', 'business'):
+        if sub_type in ('free', 'basic', 'pro', 'business', 'enterprise'):
             return SubscriptionPlan(sub_type)
 
         # Fallback: проверить старую подписку
@@ -59,10 +59,13 @@ class LimitService:
             select(Subscription).where(Subscription.user_id == user_id)
         )
         sub = result.scalar_one_or_none()
-        if sub and sub.plan_type == 'pro':
-            return SubscriptionPlan.PRO
-        if sub and sub.plan_type == 'enterprise':
-            return SubscriptionPlan.BUSINESS
+        if sub:
+            try:
+                return SubscriptionPlan(sub.plan_type)
+            except ValueError:
+                if sub.plan_type == 'enterprise':
+                    return SubscriptionPlan.ENTERPRISE
+                return SubscriptionPlan.FREE
 
         return SubscriptionPlan.FREE
 
@@ -359,7 +362,8 @@ class LimitService:
                 "free": "Бесплатный", 
                 "basic": "Базовый", 
                 "pro": "Pro", 
-                "business": "Бизнес"
+                "business": "Бизнес",
+                "enterprise": "VIP"
             }.get(plan.value, "Бесплатный"),
             "documents": {
                 "used": usage.documents_generated,
