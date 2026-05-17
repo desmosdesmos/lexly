@@ -20,6 +20,7 @@ import { NotFound } from './pages/NotFound'
 import { useAuth } from './context/AuthContext'
 import { Loader } from './components/ui/Loader'
 import { CookieBanner } from './components/ui/CookieBanner'
+import { SupportChat } from './components/SupportChat'
 
 function App() {
   const { user, loading } = useAuth()
@@ -61,6 +62,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
       <CookieBanner />
+      <SupportChat />
     </>
   )
 }

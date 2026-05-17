@@ -121,20 +121,13 @@ class TelegramNotifier:
         )
         await self.send_message(text)
 
-    async def notify_subscription_activated(self, user_email: str, plan_id: str, code: str):
-        """Уведомление об активации подписки."""
-        plan_names = {
-            "basic": "Базовый (990 ₽)",
-            "pro": "Pro (2 990 ₽)",
-            "enterprise": "Enterprise (9 990 ₽)",
-        }
-        plan_name = plan_names.get(plan_id, plan_id)
-        
+    async def notify_support_message(self, user_email: str, user_name: str, message: str):
+        """Уведомление о новом сообщении в поддержку."""
         text = (
-            f"💎 <b>Подписка активирована!</b>\n"
-            f"👤 {user_email}\n"
-            f"💰 Тариф: {plan_name}\n"
-            f"🔑 Код: <code>{code}</code>"
+            f"💬 <b>Новое сообщение в поддержку!</b>\n"
+            f"👤 <b>{user_name}</b>\n"
+            f"📧 {user_email}\n\n"
+            f"📝 <b>Сообщение:</b>\n{message}"
         )
         await self.send_message(text)
 

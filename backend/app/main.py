@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import init_db, close_db
-from app.routers import auth, documents, contracts, user, payments, court_practice, legislation, legal_consult
+from app.routers import auth, documents, contracts, user, payments, court_practice, legislation, legal_consult, support
 
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(payments.router, prefix=settings.API_V1_PREFIX)
 app.include_router(court_practice.router, prefix=settings.API_V1_PREFIX)
 app.include_router(legislation.router, prefix=settings.API_V1_PREFIX)
 app.include_router(legal_consult.router, prefix=settings.API_V1_PREFIX)
+app.include_router(support.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
@@ -72,4 +73,3 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG,
     )
-
