@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Crown, Check, X, ArrowRight, CreditCard, Zap, Shield, Star, Ticket } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { toast } from 'react-toastify'
@@ -7,7 +7,24 @@ import api from '../services/api'
 export function SubscriptionPage() {
   const [promoCode, setPromoCode] = useState('')
   const [applyingPromo, setApplyingPromo] = useState(false)
-  const currentPlan = 'free'
+  const [usage, setUsage] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const loadUsage = async () => {
+      try {
+        const data = await api.get('/user/usage')
+        setUsage(data)
+      } catch (error) {
+        console.error('Failed to load usage:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadUsage()
+  }, [])
+
+  const currentPlan = usage?.plan || 'free'
 
   const plans = [
     {
@@ -19,63 +36,43 @@ export function SubscriptionPage() {
         { text: '2 документа/мес', included: true },
         { text: '1 проверка договора/мес', included: true },
         { text: '3 AI вопроса/день', included: true },
-        { text: 'Приоритетная поддержка', included: false },
-        { text: 'API доступ', included: false },
+        { text: 'Базовая поддержка', included: true },
       ],
       color: 'from-gray-500/20 to-gray-600/20',
       border: 'border-gray-500/20',
       button: 'bg-white/10 hover:bg-white/15',
     },
     {
-      id: 'basic',
-      name: 'Базовый',
-      price: 490,
-      description: 'Для частных пользователей',
+      id: 'pro',
+      name: 'Pro',
+      price: 290,
+      description: 'Для фрилансеров и профи',
       features: [
-        { text: '15 документов/мес', included: true },
-        { text: '10 проверок договоров/мес', included: true },
-        { text: '20 AI вопросов/день', included: true },
-        { text: 'Приоритетная поддержка', included: false },
-        { text: 'API доступ', included: false },
+        { text: '30 документов/мес', included: true },
+        { text: '15 проверок договоров/мес', included: true },
+        { text: '50 AI вопросов/день', included: true },
+        { text: 'Приоритетная поддержка', included: true },
       ],
       color: 'from-blue-500/20 to-cyan-500/20',
       border: 'border-blue-500/20',
       button: 'bg-blue-600 hover:bg-blue-700',
-      popular: false,
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: 1490,
-      description: 'Для юристов и адвокатов',
-      features: [
-        { text: '50 документов/мес', included: true },
-        { text: '25 проверок договоров/мес', included: true },
-        { text: '100 AI вопросов/день', included: true },
-        { text: 'Приоритетная поддержка 24/7', included: true },
-        { text: 'API доступ', included: false },
-      ],
-      color: 'from-indigo-500/20 to-purple-500/20',
-      border: 'border-indigo-500/20',
-      button: 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700',
       popular: true,
     },
     {
       id: 'business',
       name: 'Бизнес',
-      price: 4990,
-      description: 'Для юридических фирм',
+      price: 990,
+      description: 'Полный безлимит для дел',
       features: [
-        { text: '200 документов/мес', included: true },
-        { text: '100 проверок договоров/мес', included: true },
-        { text: '500 AI вопросов/день', included: true },
-        { text: 'Выделенная поддержка', included: true },
+        { text: 'Безлимитные документы', included: true },
+        { text: 'Безлимитные проверки', included: true },
+        { text: 'Безлимитный AI', included: true },
         { text: 'API доступ', included: true },
       ],
       color: 'from-amber-500/20 to-orange-500/20',
       border: 'border-amber-500/20',
       button: 'bg-amber-600 hover:bg-amber-700',
-    },
+    }
   ]
 
   const handleSubscribe = async (planId) => {
