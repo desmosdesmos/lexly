@@ -7,9 +7,10 @@ class SubscriptionPlan(str, enum.Enum):
     BASIC = "basic"
     PRO = "pro"
     BUSINESS = "business"
+    ENTERPRISE = "enterprise"
 
 
-# Лимиты для каждого тарифа (экономичный вариант)
+# ╨Ы╨╕╨╝╨╕╤В╤Л ╨┤╨╗╤П ╨║╨░╨╢╨┤╨╛╨│╨╛ ╤В╨░╤А╨╕╤Д╨░ (╤Н╨║╨╛╨╜╨╛╨╝╨╕╤З╨╜╤Л╨╣ ╨▓╨░╤А╨╕╨░╨╜╤В)
 PLAN_LIMITS = {
     SubscriptionPlan.FREE: {
         "documents_per_month": 2,
@@ -53,7 +54,18 @@ PLAN_LIMITS = {
         "tokens_per_month": 1_000_000,    # Fair use limit
         "has_api_access": True,
         "has_priority": True,
-        "data_retention_days": -1,        # Бессрочно
+        "data_retention_days": -1,        # ╨С╨╡╤Б╤Б╤А╨╛╤З╨╜╨╛
+    },
+    SubscriptionPlan.ENTERPRISE: {
+        "documents_per_month": 999999,
+        "contracts_per_month": 999999,
+        "ai_requests_per_day": 999999,
+        "court_practice_per_day": 999999,
+        "law_monitoring_per_day": 999999,
+        "tokens_per_month": 999999999,
+        "has_api_access": True,
+        "has_priority": True,
+        "data_retention_days": -1,
     },
 }
 
@@ -64,9 +76,10 @@ def get_plan_limit(plan: SubscriptionPlan) -> dict:
 
 def get_plan_name_display(plan: SubscriptionPlan) -> str:
     names = {
-        SubscriptionPlan.FREE: "Бесплатный",
-        SubscriptionPlan.BASIC: "Базовый",
+        SubscriptionPlan.FREE: "╨С╨╡╤Б╨┐╨╗╨░╤В╨╜╤Л╨╣",
+        SubscriptionPlan.BASIC: "╨С╨░╨╖╨╛╨▓╤Л╨╣",
         SubscriptionPlan.PRO: "Pro",
-        SubscriptionPlan.BUSINESS: "Бизнес",
+        SubscriptionPlan.BUSINESS: "╨С╨╕╨╖╨╜╨╡╤Б",
+        SubscriptionPlan.ENTERPRISE: "VIP",
     }
-    return names.get(plan, "Бесплатный")
+    return names.get(plan, "╨С╨╡╤Б╨┐╨╗╨░╤В╨╜╤Л╨╣")

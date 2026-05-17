@@ -51,6 +51,7 @@ export function DashboardHome() {
     if (p === 'basic') return 'Базовый'
     if (p === 'pro') return 'Pro'
     if (p === 'business') return 'Бизнес'
+    if (p === 'enterprise' || p === 'vip') return 'VIP'
     return plan
   }
 
