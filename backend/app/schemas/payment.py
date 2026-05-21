@@ -17,6 +17,7 @@ class SubscriptionPlan(str, enum.Enum):
     BASIC = "basic"
     PRO = "pro"
     BUSINESS = "business"
+    ENTERPRISE = "enterprise"
 
 
 class PaymentResponse(BaseModel):
