@@ -514,15 +514,15 @@ tr:hover {
 }
 
 /* ===== LOGO COLOR FIX ===== */
-:root[data-mode="light"] .logo-svg text {
-  fill: #000000 !important;
+:root[data-mode="light"] .logo-svg-icon path[fill^="url"] {
+  fill: var(--accent) !important;
 }
 
-:root[data-mode="light"] .logo-svg circle[fill="white"] {
+:root[data-mode="light"] .logo-svg-icon circle {
   fill: #1C1C1E !important;
 }
 
-:root[data-mode="light"] .logo-svg line[stroke="white"] {
-  stroke: rgba(0, 0, 0, 0.5) !important;
+:root[data-mode="light"] span.text-white {
+  color: #000000 !important;
 }
 

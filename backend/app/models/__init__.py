@@ -8,6 +8,7 @@ from app.models.request_log import RequestLog
 from app.models.notification import Notification
 from app.models.api_key import APIKey
 from app.models.activation_code import ActivationCode
+from app.models.support_message import SupportMessage
 
 __all__ = [
     "User",
@@ -20,5 +21,6 @@ __all__ = [
     "Notification",
     "APIKey",
     "ActivationCode",
+    "SupportMessage",
 ]
 

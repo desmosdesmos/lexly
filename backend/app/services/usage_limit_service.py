@@ -5,31 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.usage_limit import UsageLimit
 from app.models.subscription import Subscription, SubscriptionPlan
-
-
-# Лимиты для разных тарифов
-PLAN_LIMITS = {
-    SubscriptionPlan.FREE: {
-        "max_documents": 5,
-        "max_contracts": 3,
-    },
-    SubscriptionPlan.BASIC: {
-        "max_documents": 30,
-        "max_contracts": 20,
-    },
-    SubscriptionPlan.PRO: {
-        "max_documents": 200,
-        "max_contracts": 100,
-    },
-    SubscriptionPlan.BUSINESS: {
-        "max_documents": -1,  # Безлимит
-        "max_contracts": -1,
-    },
-}
+from app.services.plan_limits import PLAN_LIMITS, get_plan_limit
 
 
 class UsageLimitService:
-    """Сервис для управления лимитами использования."""
+    """Сервис для управления лимитами использования (совместимость)."""
     
     @staticmethod
     async def get_usage_limits(user_id: str, db: AsyncSession) -> Optional[UsageLimit]:
@@ -41,106 +21,65 @@ class UsageLimitService:
     
     @staticmethod
     async def check_document_limit(user_id: str, db: AsyncSession) -> bool:
-        """
-        Проверить лимит генерации документов.
-        
-        Returns:
-            True если лимит не превышен
-        
-        Raises:
-            HTTPException если лимит превышен
-        """
-        usage = await UsageLimitService.get_usage_limits(user_id, db)
-        
-        if not usage:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Лимиты использования не найдены",
-            )
-        
-        # Безлимитный тариф
-        if usage.max_documents == -1:
-            return True
-        
-        if usage.documents_generated >= usage.max_documents:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=(
-                    f"Превышен лимит генерации документов для вашего тарифа. "
-                    f"Доступно: {usage.max_documents}, использовано: {usage.documents_generated}"
-                ),
-            )
-        
+        from app.services.limit_service import limit_service
+        allowed, _ = await limit_service.check_document_limit(user_id, db)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Превышен лимит документов")
         return True
     
     @staticmethod
     async def check_contract_limit(user_id: str, db: AsyncSession) -> bool:
-        """
-        Проверить лимит проверки договоров.
-        
-        Returns:
-            True если лимит не превышен
-        
-        Raises:
-            HTTPException если лимит превышен
-        """
-        usage = await UsageLimitService.get_usage_limits(user_id, db)
-        
-        if not usage:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Лимиты использования не найдены",
-            )
-        
-        # Безлимитный тариф
-        if usage.max_contracts == -1:
-            return True
-        
-        if usage.contracts_reviewed >= usage.max_contracts:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=(
-                    f"Превышен лимит проверки договоров для вашего тарифа. "
-                    f"Доступно: {usage.max_contracts}, использовано: {usage.contracts_reviewed}"
-                ),
-            )
-        
+        from app.services.limit_service import limit_service
+        allowed, _ = await limit_service.check_contract_limit(user_id, db)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Превышен лимит проверок договоров")
         return True
     
     @staticmethod
     async def increment_documents_generated(user_id: str, db: AsyncSession):
-        """Увеличить счётчик сгенерированных документов."""
-        usage = await UsageLimitService.get_usage_limits(user_id, db)
-        
-        if usage:
-            usage.documents_generated += 1
-            await db.commit()
+        from app.services.limit_service import limit_service
+        await limit_service.increment_documents(user_id, db)
     
     @staticmethod
     async def increment_contracts_reviewed(user_id: str, db: AsyncSession):
-        """Увеличить счётчик проверенных договоров."""
-        usage = await UsageLimitService.get_usage_limits(user_id, db)
-        
-        if usage:
-            usage.contracts_reviewed += 1
-            await db.commit()
+        from app.services.limit_service import limit_service
+        await limit_service.increment_contracts(user_id, db)
     
     @staticmethod
-    async def update_plan_limits(user_id: str, plan: SubscriptionPlan, db: AsyncSession):
+    async def update_plan_limits(user_id: str, plan: str, db: AsyncSession):
         """Обновить лимиты при смене тарифа."""
         usage = await UsageLimitService.get_usage_limits(user_id, db)
         
         if not usage:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Лимиты использования не найдены",
+            # Создаем если нет
+            import uuid
+            usage = UsageLimit(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                documents_generated=0,
+                contracts_reviewed=0
             )
+            db.add(usage)
+            await db.flush()
         
-        limits = PLAN_LIMITS.get(plan, PLAN_LIMITS[SubscriptionPlan.FREE])
+        # Конвертируем строку в Enum если нужно
+        try:
+            if isinstance(plan, str):
+                p_enum = SubscriptionPlan(plan.lower())
+            else:
+                p_enum = plan
+        except ValueError:
+            # Если пришел enterprise или vip, мапим на business
+            if plan.lower() in ('enterprise', 'vip'):
+                p_enum = SubscriptionPlan.BUSINESS
+            else:
+                p_enum = SubscriptionPlan.FREE
+
+        limits = get_plan_limit(p_enum)
         
-        usage.plan_type = plan
-        usage.max_documents = limits["max_documents"]
-        usage.max_contracts = limits["max_contracts"]
+        usage.plan_type = p_enum.value
+        usage.max_documents = limits["documents_per_month"]
+        usage.max_contracts = limits["contracts_per_month"]
         usage.documents_generated = 0
         usage.contracts_reviewed = 0
         
@@ -156,17 +95,6 @@ async def check_and_increment_usage(
     resource_type: str,
     db: AsyncSession,
 ) -> bool:
-    """
-    Проверить лимит и увеличить счётчик.
-    
-    Args:
-        user_id: ID пользователя
-        resource_type: 'documents' или 'contracts'
-        db: Сессия БД
-    
-    Returns:
-        True если лимит не превышен, False если превышен
-    """
     try:
         if resource_type == "documents":
             await UsageLimitService.check_document_limit(user_id, db)
@@ -176,8 +104,6 @@ async def check_and_increment_usage(
             await UsageLimitService.increment_contracts_reviewed(user_id, db)
         else:
             return False
-        
         return True
     except HTTPException:
         return False
-

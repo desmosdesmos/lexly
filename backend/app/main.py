@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 from app.config import settings
@@ -36,6 +37,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Static Files
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # Роуты
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)

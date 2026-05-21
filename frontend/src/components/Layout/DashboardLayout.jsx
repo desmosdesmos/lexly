@@ -167,15 +167,27 @@ export function DashboardLayout() {
           <Outlet />
         </main>
 
-        {/* Minimal Dashboard Footer */}
         <footer className="px-4 lg:px-8 py-6 border-t border-[var(--border-subtle)]">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] uppercase tracking-wider font-medium text-[var(--text-tertiary)]">
-            <div className="flex gap-4">
-              <Link to="/privacy" className="hover:text-[var(--accent)]">Политика ПДн</Link>
-              <Link to="/terms" className="hover:text-[var(--accent)]">Оферта</Link>
-              <span className="hidden md:inline">Пащенко Е.В., ИНН 644011277300</span>
+            <div className="flex flex-col gap-1">
+              <div className="flex gap-4">
+                <Link to="/privacy" className="hover:text-[var(--accent)]">Политика ПДн</Link>
+                <Link to="/terms" className="hover:text-[var(--accent)]">Оферта</Link>
+                <span className="hidden md:inline">Пащенко Я.В., ИНН 644010686500</span>
+              </div>
+              <div className="flex gap-4 opacity-50">
+                <span>LegalID: LA0005406707</span>
+                <span>MerchantID: MA0006349722</span>
+              </div>
             </div>
-            <div>© 2026 Laxly Law AI</div>
+            <div className="flex flex-col items-end gap-1">
+              <div>© 2026 Laxly Law AI</div>
+              <div className="flex gap-3 opacity-30 text-[9px] font-black">
+                <span>T-Pay</span>
+                <span>СБП</span>
+                <span>Мир</span>
+              </div>
+            </div>
           </div>
         </footer>
       </div>

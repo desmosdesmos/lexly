@@ -88,7 +88,7 @@ class ResendService:
                     </p>
                 </div>
                 <div style="margin-top: 24px; text-align: center;">
-                    <p style="font-size: 12px; color: rgba(0,0,0,0.3); margin: 0;">© 2026 Пащенко Е.В. — AI-юридическая платформа</p>
+                    <p style="font-size: 12px; color: rgba(0,0,0,0.3); margin: 0;">© 2026 Пащенко Ян — AI-юридическая платформа</p>
                 </div>
             </div>
         </body>
@@ -102,7 +102,7 @@ class ResendService:
         
         Если вы не регистрировались в Laxly, проигнорируйте это письмо.
         
-        © 2026 Пащенко Е.В. — AI-юридическая платформа
+        © 2026 Пащенко Ян — AI-юридическая платформа
         """
         
         return await self.send_email(to_email, subject, html_content, text_content)

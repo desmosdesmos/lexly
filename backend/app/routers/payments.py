@@ -9,7 +9,10 @@ import uuid
 import json
 import secrets
 import string
+import logging
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from app.database import get_db
 from app.models.user import User
@@ -28,78 +31,11 @@ from app.services.usage_limit_service import usage_limit_service
 from app.services.telegram_notifier import telegram_notifier
 from app.middleware.auth import get_current_user
 from app.config import settings
+from app.services.yookassa_service import yookassa_service
 
 router = APIRouter(prefix="/payments", tags=["Оплата"])
 
-# Тарифные планы
-PLANS = [
-    PaymentPlan(
-        id=SubscriptionPlan.FREE,
-        name="Бесплатный",
-        price=Decimal("0"),
-        currency="RUB",
-        billing_period=None,
-        features=PlanFeatures(
-            documents_per_month=5,
-            contracts_per_month=3,
-            priority_support=False,
-            api_access=False,
-        ),
-    ),
-    PaymentPlan(
-        id=SubscriptionPlan.BASIC,
-        name="Базовый",
-        price=Decimal("990"),
-        currency="RUB",
-        billing_period="monthly",
-        features=PlanFeatures(
-            documents_per_month=30,
-            contracts_per_month=20,
-            priority_support=False,
-            api_access=False,
-        ),
-    ),
-    PaymentPlan(
-        id=SubscriptionPlan.PRO,
-        name="Профессиональный",
-        price=Decimal("2990"),
-        currency="RUB",
-        billing_period="monthly",
-        features=PlanFeatures(
-            documents_per_month=200,
-            contracts_per_month=100,
-            priority_support=True,
-            api_access=True,
-        ),
-    ),
-    PaymentPlan(
-        id=SubscriptionPlan.BUSINESS,
-        name="Корпоративный",
-        price=Decimal("9990"),
-        currency="RUB",
-        billing_period="monthly",
-        features=PlanFeatures(
-            documents_per_month=-1,
-            contracts_per_month=-1,
-            priority_support=True,
-            api_access=True,
-            team_members=10,
-            custom_integrations=True,
-        ),
-    ),
-]
-
-
-@router.get(
-    "/plans",
-    summary="Тарифные планы",
-)
-async def get_plans():
-    """
-    Получить список всех тарифных планов.
-    """
-    return {"plans": PLANS}
-
+# ... (PLANS and get_plans unchanged)
 
 @router.post(
     "/subscribe",
@@ -134,9 +70,10 @@ async def subscribe(
             detail="Тарифный план не найден",
         )
     
-    # Создание платежа
+    # Создание записи платежа в БД (PENDING)
+    payment_id = uuid.uuid4()
     payment = Payment(
-        id=uuid.uuid4(),
+        id=payment_id,
         user_id=current_user.id,
         amount=plan.price,
         currency=plan.currency,
@@ -147,22 +84,37 @@ async def subscribe(
     
     db.add(payment)
     await db.commit()
-    await db.refresh(payment)
     
-    # В реальном приложении здесь создаётся сессия Stripe/YooKassa
-    # и возвращается URL для оплаты
-    payment_url = f"https://payment-gateway.example/pay/{payment.id}"
-    
-    payment.payment_url = payment_url
-    await db.commit()
-    
-    return {
-        "payment_url": payment_url,
-        "session_id": str(payment.id),
-        "plan_id": plan_id.value,
-        "amount": float(plan.price),
-        "currency": plan.currency,
-    }
+    # Создание платежа в YooKassa
+    try:
+        yookassa_payment = await yookassa_service.create_payment(
+            amount=float(plan.price),
+            description=f"Оплата подписки {plan.name} для {current_user.email}",
+            metadata={
+                "user_id": str(current_user.id),
+                "payment_id": str(payment_id),
+                "plan_id": plan_id.value
+            }
+        )
+        
+        payment.external_payment_id = yookassa_payment.id
+        payment.payment_url = yookassa_payment.confirmation.confirmation_url
+        await db.commit()
+        await db.refresh(payment)
+        
+        return {
+            "payment_url": payment.payment_url,
+            "session_id": str(payment.id),
+            "plan_id": plan_id.value,
+            "amount": float(plan.price),
+            "currency": plan.currency,
+        }
+    except Exception as e:
+        logger.error(f"YooKassa payment creation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ошибка при создании платежа в платёжной системе"
+        )
 
 
 @router.post(
@@ -174,26 +126,34 @@ async def payment_webhook(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Обработать webhook от платёжной системы.
+    Обработать webhook от ЮKassa.
     """
     try:
         body = await request.json()
+        logger.info(f"Received YooKassa webhook: {body}")
         
         event = body.get("event")
-        session_id = body.get("session_id")
-        user_id = body.get("user_id")
+        obj = body.get("object", {})
         
-        if event == "payment.completed":
+        if event == "payment.succeeded":
+            metadata = obj.get("metadata", {})
+            payment_id = metadata.get("payment_id")
+            user_id = metadata.get("user_id")
+            
+            if not payment_id:
+                logger.error("No payment_id in YooKassa webhook metadata")
+                return {"status": "error", "message": "No payment_id"}
+
             # Обновление платежа
             payment_result = await db.execute(
-                select(Payment).where(Payment.id == session_id)
+                select(Payment).where(Payment.id == payment_id)
             )
             payment = payment_result.scalar_one_or_none()
             
-            if payment:
+            if payment and payment.status != PaymentStatus.COMPLETED:
                 payment.status = PaymentStatus.COMPLETED
                 payment.completed_at = datetime.utcnow()
-                payment.transaction_id = body.get("transaction_id")
+                payment.transaction_id = obj.get("id")
                 
                 # Обновление подписки пользователя
                 sub_result = await db.execute(
@@ -201,7 +161,15 @@ async def payment_webhook(
                 )
                 subscription = sub_result.scalar_one_or_none()
                 
-                if subscription:
+                if not subscription:
+                    subscription = Subscription(
+                        user_id=payment.user_id,
+                        plan_type=payment.plan_type,
+                        status=SubscriptionStatus.ACTIVE,
+                        auto_renew=True
+                    )
+                    db.add(subscription)
+                else:
                     subscription.plan_type = payment.plan_type
                     subscription.status = SubscriptionStatus.ACTIVE
                     subscription.auto_renew = True
@@ -213,15 +181,40 @@ async def payment_webhook(
                     db,
                 )
                 
+                # Уведомление в Telegram
+                try:
+                    user_result = await db.execute(select(User).where(User.id == payment.user_id))
+                    user = user_result.scalar_one_or_none()
+                    if user:
+                        await telegram_notifier.notify_subscription_activated(
+                            user_email=user.email,
+                            plan_id=payment.plan_type,
+                            code="PAYMENT"
+                        )
+                except Exception as te:
+                    logger.warning(f"Failed to send Telegram notification: {te}")
+
                 await db.commit()
+                logger.info(f"Payment {payment_id} completed successfully")
         
+        elif event == "payment.canceled":
+            metadata = obj.get("metadata", {})
+            payment_id = metadata.get("payment_id")
+            if payment_id:
+                payment_result = await db.execute(
+                    select(Payment).where(Payment.id == payment_id)
+                )
+                payment = payment_result.scalar_one_or_none()
+                if payment:
+                    payment.status = PaymentStatus.FAILED
+                    await db.commit()
+                    logger.info(f"Payment {payment_id} canceled")
+
         return {"status": "ok"}
     
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Ошибка обработки webhook: {str(e)}",
-        )
+        logger.error(f"Error processing webhook: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 @router.get(

@@ -139,6 +139,27 @@ class LimitService:
         await db.commit()
 
     @staticmethod
+    async def increment_ai_request(user_id: str, db: AsyncSession):
+        """Увеличить счетчик AI запросов."""
+        usage = await LimitService._get_or_create_limits(user_id, db)
+        usage.ai_requests_today += 1
+        await db.commit()
+
+    @staticmethod
+    async def increment_court_practice(user_id: str, db: AsyncSession):
+        """Увеличить счетчик судебной практики."""
+        usage = await LimitService._get_or_create_limits(user_id, db)
+        usage.court_practice_today += 1
+        await db.commit()
+
+    @staticmethod
+    async def increment_law_monitoring(user_id: str, db: AsyncSession):
+        """Увеличить счетчик мониторинга законодательства."""
+        usage = await LimitService._get_or_create_limits(user_id, db)
+        usage.law_monitoring_today += 1
+        await db.commit()
+
+    @staticmethod
     async def get_usage_status(user_id: str, db: AsyncSession) -> dict:
         usage = await LimitService._get_or_create_limits(user_id, db)
         plan = await LimitService._get_user_plan(user_id, db)

@@ -1,70 +1,52 @@
 export function Logo({ size = 'md', className = '' }) {
   const sizes = {
-    sm: 'h-8',
-    md: 'h-10',
-    lg: 'h-14',
-    xl: 'h-20',
+    sm: 'h-6',
+    md: 'h-8',
+    lg: 'h-10',
+    xl: 'h-14',
   }
 
   return (
-    <svg
-      viewBox="0 0 200 50"
-      className={`${sizes[size]} w-auto logo-svg ${className}`}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Icon - Scales of Justice */}
-      <g transform="translate(2, 8)">
-        {/* Base */}
-        <rect x="12" y="28" width="10" height="4" rx="2" fill="url(#base-gradient)" />
-        {/* Pillar */}
-        <rect x="15" y="8" width="4" height="20" rx="2" fill="url(#pillar-gradient)" />
-        {/* Beam */}
-        <rect x="4" y="8" width="26" height="3" rx="1.5" fill="url(#beam-gradient)" />
-        {/* Left pan */}
-        <path d="M4 11 L1 22 Q4 24 7 22 Z" fill="url(#pan-gradient)" opacity="0.9" />
-        <line x1="4" y1="11" x2="1" y2="22" stroke="white" stroke-opacity="0.6" stroke-width="0.5" />
-        <line x1="4" y1="11" x2="7" y2="22" stroke="white" stroke-opacity="0.6" stroke-width="0.5" />
-        {/* Right pan */}
-        <path d="M30 11 L27 22 Q30 24 33 22 Z" fill="url(#pan-gradient)" opacity="0.9" />
-        <line x1="30" y1="11" x2="27" y2="22" stroke="white" stroke-opacity="0.6" stroke-width="0.5" />
-        <line x1="30" y1="11" x2="33" y2="22" stroke="white" stroke-opacity="0.6" stroke-width="0.5" />
-        {/* Top dot */}
-        <circle cx="17" cy="8" r="2" fill="white" opacity="0.9" />
-      </g>
-
-      {/* Text - Laxly */}
-      <text
-        x="48"
-        y="34"
-        font-family="'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif"
-        font-size="32"
-        font-weight="700"
-        fill="white"
-        letter-spacing="-0.5"
+    <div className={`flex items-center gap-2.5 ${className}`}>
+      <svg
+        viewBox="0 0 40 40"
+        className={`${sizes[size]} w-auto logo-svg-icon`}
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
       >
-        Laxly
-      </text>
-
-      {/* Gradient definitions */}
-      <defs>
-        <linearGradient id="base-gradient" x1="12" y1="28" x2="22" y2="32" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#0A84FF" />
-          <stop offset="1" stop-color="#5E5CE6" />
-        </linearGradient>
-        <linearGradient id="pillar-gradient" x1="15" y1="8" x2="19" y2="28" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#5E5CE6" />
-          <stop offset="1" stop-color="#0A84FF" />
-        </linearGradient>
-        <linearGradient id="beam-gradient" x1="4" y1="8" x2="30" y2="11" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#0A84FF" />
-          <stop offset="1" stop-color="#5E5CE6" />
-        </linearGradient>
-        <linearGradient id="pan-gradient" x1="1" y1="11" x2="7" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stop-color="#0A84FF" stop-opacity="0.3" />
-          <stop offset="1" stop-color="#5E5CE6" stop-opacity="0.5" />
-        </linearGradient>
-      </defs>
-    </svg>
+        {/* Modern Abstract Icon: A shield-like 'L' with AI glow */}
+        <path
+          d="M32 10V26C32 28.2091 30.2091 30 28 30H12L8 34V10C8 7.79086 9.79086 6 12 6H28C30.2091 6 32 7.79086 32 10Z"
+          fill="url(#logo-gradient)"
+        />
+        {/* The 'L' cut-out */}
+        <path
+          d="M16 14V22H24"
+          stroke="white"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* AI Sparkle */}
+        <circle cx="28" cy="12" r="3" fill="white" className="animate-pulse" />
+        
+        <defs>
+          <linearGradient id="logo-gradient" x1="8" y1="6" x2="32" y2="34" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#0A84FF" />
+            <stop offset="1" stopColor="#5E5CE6" />
+          </linearGradient>
+        </defs>
+      </svg>
+      
+      <span 
+        className="font-bold tracking-tight text-white select-none"
+        style={{ 
+          fontSize: size === 'sm' ? '18px' : size === 'md' ? '22px' : size === 'lg' ? '28px' : '36px',
+          fontFamily: "'Google Sans', sans-serif"
+        }}
+      >
+        Laxly<span className="text-[#0A84FF]">.</span>
+      </span>
+    </div>
   )
 }

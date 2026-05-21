@@ -221,34 +221,69 @@ class AIService:
             response_format={"type": "json_object"},
         )
         
-        cleaned_text = response_text.strip()
-        
-        # 1. Базовая очистка от markdown
-        if cleaned_text.startswith("```"):
-            # Находим начало JSON
-            json_start = cleaned_text.find("{")
-            json_end = cleaned_text.rfind("}")
-            if json_start != -1 and json_end != -1:
-                cleaned_text = cleaned_text[json_start:json_end+1]
-        
-        # 2. Попытка исправить распространенные ошибки AI
-        def repair_json_logic(text):
+        def clean_json_text(text: str) -> str:
+            # 1. Базовая очистка
+            text = text.strip()
+            
+            # 2. Удаление markdown оберток ```json ... ``` или ``` ... ```
             import re
-            # Удаляем лишние запятые перед закрывающими скобками
-            text = re.sub(r',\s*([}\]])', r'\1', text)
-            # Исправляем неэкранированные кавычки внутри строк (базовая попытка)
-            # Это сложно сделать идеально без полноценного парсера, 
-            # но мы можем попробовать найти кавычки, которые не являются разделителями
+            if "```" in text:
+                # Ищем содержимое между тройными кавычками
+                blocks = re.findall(r'```(?:json)?\s*({.*})\s*```', text, re.DOTALL)
+                if blocks:
+                    text = blocks[0].strip()
+                else:
+                    # Если не нашли по шаблону, просто пробуем вырезать всё что до первого { и после последнего }
+                    start = text.find("{")
+                    end = text.rfind("}")
+                    if start != -1 and end != -1:
+                        text = text[start:end+1]
+
             return text
+
+        def repair_json_logic(text: str) -> str:
+            import re
+            # 1. Удаляем лишние запятые перед закрывающими скобками
+            text = re.sub(r',\s*([}\]])', r'\1', text)
+            
+            # 2. Исправляем двойные открывающие фигурные скобки внутри массивов [ {{ ... }} ]
+            # Это частая ошибка AI
+            text = re.sub(r'\[\s*\{\s*\{', '[ {', text)
+            text = re.sub(r'\}\s*\}\s*\]', '} ]', text)
+            text = re.sub(r'\}\s*,\s*\{\s*\{', '}, {', text)
+
+            # 3. Исправляем пропущенные кавычки вокруг ключей
+            text = re.sub(r'([{,]\s*)(\w+)(\s*:)', r'\1"\2"\3', text)
+            
+            # 4. Если всё еще не парсится, пробуем заменить одинарные кавычки на двойные
+            try:
+                json.loads(text)
+                return text
+            except json.JSONDecodeError:
+                # Только те, что похожи на кавычки вокруг ключей или значений
+                text = re.sub(r"\'(\w+)\'\s*:", r'"\1":', text)  # ключи
+                text = re.sub(r":\s*\'(.*?)\'", r': "\1"', text)  # строковые значения
+                return text
+
+        cleaned_text = clean_json_text(response_text)
 
         try:
             return json.loads(cleaned_text)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             try:
-                # Вторая попытка с исправлением запятых
+                # Вторая попытка с исправлением
                 repaired = repair_json_logic(cleaned_text)
                 return json.loads(repaired)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
+                # Если всё совсем плохо, пробуем вырезать объект еще раз (на случай если там был текст вокруг)
+                try:
+                    import re
+                    match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
+                    if match:
+                        return json.loads(repair_json_logic(match.group()))
+                except:
+                    pass
+                
                 logger.error(f"Failed to parse JSON response. Error: {str(e)}\nRaw: {response_text[:1000]}")
                 raise ValueError(f"AI вернул невалидный JSON: {str(e)}")
 

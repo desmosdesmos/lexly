@@ -63,7 +63,8 @@ export function PaywallModal({ isOpen, onClose, resource = 'documents' }) {
   ]
 
   const handleUpgrade = () => {
-    toast.info('Подключение оплаты в разработке. Свяжитесь с desmosymail@gmail.com')
+    onClose()
+    window.location.href = '/dashboard/subscription'
   }
 
   return (

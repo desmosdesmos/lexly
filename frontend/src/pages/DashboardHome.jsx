@@ -14,12 +14,12 @@ export function DashboardHome() {
   useEffect(() => {
     const loadUsage = async () => {
       try {
-        const [usageData, docsData] = await Promise.all([
+        const [usageRes, docsRes] = await Promise.all([
           api.get('/user/usage'),
           api.get('/documents', { params: { page: 1, limit: 5 } }).catch(() => ({ data: { items: [] } }))
         ])
-        setUsage(usageData)
-        setRecentDocs(docsData.data.items || [])
+        setUsage(usageRes.data)
+        setRecentDocs(docsRes.data.items || [])
       } catch (error) {
         console.error('Failed to load usage:', error)
       } finally {

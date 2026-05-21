@@ -82,13 +82,18 @@ class Settings(BaseSettings):
     # Google OAuth
     GOOGLE_CLIENT_ID: str = ""
 
+    # YooKassa
+    YOOKASSA_SHOP_ID: str = "1360639"
+    YOOKASSA_SECRET_KEY: str = ""
+    YOOKASSA_RETURN_URL: str = "http://localhost:5173/dashboard/profile"
+
     # Email (для восстановления пароля и уведомлений)
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
-    SMTP_FROM_NAME: str = "Пащенко Егор"
+    SMTP_FROM_NAME: str = "Пащенко Ян"
     RESEND_API_KEY: str = ""
 
     # Telegram Bot (для уведомлений админу)

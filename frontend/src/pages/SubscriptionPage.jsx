@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Crown, Check, X, ArrowRight, CreditCard, Zap, Shield, Star, Ticket } from 'lucide-react'
+import { Crown, Check, X, ArrowRight, CreditCard, Zap, Shield, Star, Ticket, ShieldCheck, Truck, Loader2 } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { toast } from 'react-toastify'
 import api from '../services/api'
@@ -9,325 +9,399 @@ export function SubscriptionPage() {
   const [applyingPromo, setApplyingPromo] = useState(false)
   const [usage, setUsage] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [backendPlans, setBackendPlans] = useState([])
+  const [isSubscribing, setIsSubscribing] = useState(null)
 
   useEffect(() => {
-    const loadUsage = async () => {
+    const loadData = async () => {
       try {
-        const data = await api.get('/user/usage')
-        setUsage(data)
+        const [usageRes, plansRes] = await Promise.all([
+          api.get('/user/usage'),
+          api.get('/payments/plans')
+        ])
+        setUsage(usageRes.data)
+        setBackendPlans(plansRes.data.plans)
       } catch (error) {
-        console.error('Failed to load usage:', error)
+        console.error('Failed to load data:', error)
       } finally {
         setLoading(false)
       }
     }
-    loadUsage()
+    loadData()
   }, [])
 
-  const currentPlan = usage?.plan || 'free'
+  const currentPlan = usage?.plan?.toLowerCase() || 'free'
 
-  const plans = [
-    {
-      id: 'free',
-      name: 'Бесплатный',
-      price: 0,
-      description: 'Для знакомства с платформой',
+  // Маппинг иконок и стилей для планов из бэкенда
+  const planStyles = {
+    free: {
+      description: 'Для базовых задач',
+      buttonClass: 'bg-white/5 hover:bg-white/10 text-white/70',
       features: [
-        { text: '2 документа/мес', included: true },
-        { text: '1 проверка договора/мес', included: true },
-        { text: '3 AI вопроса/день', included: true },
-        { text: 'Базовая поддержка', included: true },
-      ],
-      color: 'from-gray-500/20 to-gray-600/20',
-      border: 'border-gray-500/20',
-      button: 'bg-white/10 hover:bg-white/15',
+        '5 документов в месяц',
+        '3 проверки договора',
+        'Базовая поддержка',
+      ]
     },
-    {
-      id: 'pro',
-      name: 'Pro',
-      price: 290,
-      description: 'Для фрилансеров и профи',
-      features: [
-        { text: '30 документов/мес', included: true },
-        { text: '15 проверок договоров/мес', included: true },
-        { text: '50 AI вопросов/день', included: true },
-        { text: 'Приоритетная поддержка', included: true },
-      ],
-      color: 'from-blue-500/20 to-cyan-500/20',
-      border: 'border-blue-500/20',
-      button: 'bg-blue-600 hover:bg-blue-700',
+    basic: {
+      description: 'Для активной работы',
+      buttonClass: 'bg-[#0A84FF] hover:bg-[#007AFF] text-white shadow-[0_0_20px_rgba(10,132,255,0.3)]',
       popular: true,
-    },
-    {
-      id: 'business',
-      name: 'Бизнес',
-      price: 990,
-      description: 'Полный безлимит для дел',
       features: [
-        { text: 'Безлимитные документы', included: true },
-        { text: 'Безлимитные проверки', included: true },
-        { text: 'Безлимитный AI', included: true },
-        { text: 'API доступ', included: true },
-      ],
-      color: 'from-amber-500/20 to-orange-500/20',
-      border: 'border-amber-500/20',
-      button: 'bg-amber-600 hover:bg-amber-700',
+        '30 документов в месяц',
+        '20 проверок договоров',
+        'Приоритетная поддержка',
+      ]
+    },
+    pro: {
+      description: 'Профессиональный уровень',
+      buttonClass: 'bg-[#0A84FF] hover:bg-[#007AFF] text-white shadow-[0_0_20px_rgba(10,132,255,0.3)]',
+      features: [
+        '200 документов в месяц',
+        '100 проверок договоров',
+        'Приоритетная поддержка',
+        'API доступ',
+      ]
+    },
+    business: {
+      description: 'Максимум возможностей',
+      buttonClass: 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-[0_0_20px_rgba(245,158,11,0.2)]',
+      features: [
+        'Безлимитные документы',
+        'Безлимитные проверки',
+        'Персональный менеджер',
+        'Командный доступ',
+      ]
     }
-  ]
+  }
 
   const handleSubscribe = async (planId) => {
     if (planId === currentPlan) {
-      toast.info('У вас уже этот тариф')
+      toast.info('У вас уже активирован этот тариф')
       return
     }
 
-    if (planId === 'free') {
-      toast.info('Вы на бесплатном тарифе')
-      return
+    if (planId === 'free') return
+
+    setIsSubscribing(planId)
+    try {
+      const response = await api.post('/payments/subscribe', {
+        plan_id: planId,
+        payment_method: 'card'
+      })
+      
+      if (response.data.payment_url) {
+        window.location.href = response.data.payment_url
+      } else {
+        toast.error('Не удалось получить ссылку на оплату')
+      }
+    } catch (error) {
+      console.error('Subscription error:', error)
+      toast.error(error.response?.data?.detail || 'Ошибка при создании платежа')
+    } finally {
+      setIsSubscribing(null)
     }
-
-    const plan = plans.find(p => p.id === planId)
-    if (!plan) return
-
-    // Формируем сообщение для Telegram
-    const message = encodeURIComponent(
-      `Здравствуйте! Хочу оформить подписку на тариф "${plan.name}" (${plan.price.toLocaleString('ru-RU')} ₽/мес). Как оплатить?`
-    )
-
-    // Редирект в Telegram
-    window.open(`https://t.me/yanvtg?text=${message}`, '_blank')
-    toast.success('Открываю Telegram для связи...')
   }
 
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) {
-      toast.error('Введите промокод')
-      return
-    }
+  // ... (handleApplyPromo unchanged)
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 text-[#0A84FF] animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-10 pb-20 px-2 sm:px-0">
+      {/* Header Section */}
+      <div className="text-center space-y-4 pt-4">
+        <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white">Выбор тарифа</h1>
+        <p className="text-white/40 text-lg max-w-xl mx-auto">
+          Прозрачные цены без скрытых платежей. Выберите план, который подходит именно вам.
+        </p>
+      </div>
+
+      {/* Plans Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+        {backendPlans.map((plan) => {
+          const style = planStyles[plan.id.toLowerCase()] || planStyles.free
+          const isCurrent = plan.id.toLowerCase() === currentPlan
+          
+          return (
+            <div 
+              key={plan.id}
+              className={`
+                relative flex flex-col p-8 rounded-[40px] border transition-all duration-500
+                ${isCurrent 
+                  ? 'bg-white/[0.03] border-[#0A84FF]/50 shadow-[0_0_40px_rgba(10,132,255,0.1)]' 
+                  : 'bg-white/[0.02] border-white/5 hover:border-white/10'
+                }
+              `}
+            >
+              {style.popular && !currentPlan.includes(plan.id.toLowerCase()) && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-[#0A84FF] text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                  Популярный
+                </div>
+              )}
+              
+              {isCurrent && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-green-500 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                  Ваш текущий тариф
+                </div>
+              )}
+
+              <div className="mb-8">
+                <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                <p className="text-sm text-white/30 font-medium">{style.description}</p>
+              </div>
+
+              <div className="mb-10 flex items-baseline gap-1">
+                <span className="text-5xl font-black text-white">{plan.price}</span>
+                <span className="text-lg text-white/40 font-bold">₽/мес</span>
+              </div>
+
+              <div className="flex-1 space-y-4 mb-10">
+                {(plan.features_list || style.features).map((feature, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-[#0A84FF]/10 text-[#0A84FF]">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                    <span className="text-[15px] text-white/70 font-medium">
+                      {typeof feature === 'string' ? feature : feature.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handleSubscribe(plan.id.toLowerCase())}
+                disabled={isCurrent || isSubscribing === plan.id.toLowerCase()}
+                className={`
+                  w-full py-4 rounded-[22px] font-bold text-sm transition-all duration-300 active:scale-95 flex items-center justify-center gap-2
+                  ${isCurrent ? 'bg-white/5 text-white/20 cursor-default' : style.buttonClass}
+                `}
+              >
+                {isSubscribing === plan.id.toLowerCase() ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : isCurrent ? (
+                  'Уже подключено'
+                ) : (
+                  'Выбрать план'
+                )}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return
     setApplyingPromo(true)
     try {
       await api.post('/payments/activate-code', { code: promoCode.trim() })
-      toast.success('Промокод успешно активирован! 🎉')
-      setPromoCode('')
-      // Обновляем страницу через 2 секунды
-      setTimeout(() => window.location.reload(), 2000)
+      toast.success('Тариф успешно активирован!')
+      setTimeout(() => window.location.reload(), 1500)
     } catch (err) {
-      const detail = err.response?.data?.detail || 'Неверный промокод'
-      toast.error(typeof detail === 'string' ? detail : 'Ошибка активации промокода')
+      toast.error(err.response?.data?.detail || 'Ошибка кода')
     } finally {
       setApplyingPromo(false)
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 text-[#0A84FF] animate-spin" />
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <Crown className="w-8 h-8 text-amber-400" />
-          <h1 className="text-3xl font-semibold">Тарифы и подписка</h1>
-        </div>
-        <p className="text-white/50">Выберите подходящий тарифный план</p>
+    <div className="max-w-6xl mx-auto space-y-10 pb-20 px-2 sm:px-0">
+      {/* Header Section */}
+      <div className="text-center space-y-4 pt-4">
+        <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white">Выбор тарифа</h1>
+        <p className="text-white/40 text-lg max-w-xl mx-auto">
+          Прозрачные цены без скрытых платежей. Выберите план, который подходит именно вам.
+        </p>
       </div>
 
-      {/* Преимущества Pro */}
-      <Card>
-        <CardBody>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-indigo-500/20">
-                <Zap className="w-5 h-5 text-indigo-400" />
+      {/* Plans Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
+        {plans.map((plan) => (
+          <div 
+            key={plan.id}
+            className={`
+              relative flex flex-col p-8 rounded-[40px] border transition-all duration-500
+              ${plan.id === currentPlan 
+                ? 'bg-white/[0.03] border-[#0A84FF]/50 shadow-[0_0_40px_rgba(10,132,255,0.1)]' 
+                : 'bg-white/[0.02] border-white/5 hover:border-white/10'
+              }
+            `}
+          >
+            {plan.popular && !currentPlan.includes(plan.id) && (
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-[#0A84FF] text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                Популярный
               </div>
-              <div>
-                <h3 className="font-medium mb-1">Быстрая генерация</h3>
-                <p className="text-sm text-white/50">Документы за секунды через GigaChat AI</p>
+            )}
+            
+            {plan.id === currentPlan && (
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-green-500 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
+                Ваш текущий тариф
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-green-500/20">
-                <Shield className="w-5 h-5 text-green-400" />
-              </div>
-              <div>
-                <h3 className="font-medium mb-1">Безопасность данных</h3>
-                <p className="text-sm text-white/50">Все данные хранятся в РФ (152-ФЗ)</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-amber-500/20">
-                <Star className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <h3 className="font-medium mb-1">Поддержка 24/7</h3>
-                <p className="text-sm text-white/50">Помощь в любое время</p>
-              </div>
-            </div>
-          </div>
-        </CardBody>
-      </Card>
+            )}
 
-      {/* Промокод */}
-      <Card className="border-amber-500/20">
-        <CardBody>
-          <div className="flex items-center gap-3 mb-4">
-            <Ticket className="w-6 h-6 text-amber-400" />
-            <h2 className="text-lg font-semibold">Активировать промокод</h2>
+            <div className="mb-8">
+              <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+              <p className="text-sm text-white/30 font-medium">{plan.description}</p>
+            </div>
+
+            <div className="mb-10 flex items-baseline gap-1">
+              <span className="text-5xl font-black text-white">{plan.price}</span>
+              <span className="text-lg text-white/40 font-bold">₽/мес</span>
+            </div>
+
+            <div className="flex-1 space-y-4 mb-10">
+              {plan.features.map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${feature.included ? 'bg-[#0A84FF]/10 text-[#0A84FF]' : 'bg-white/5 text-white/10'}`}>
+                    {feature.included ? <Check className="w-3 h-3 stroke-[3]" /> : <X className="w-3 h-3" />}
+                  </div>
+                  <span className={`text-[15px] ${feature.included ? 'text-white/70 font-medium' : 'text-white/20'}`}>
+                    {feature.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => handleSubscribe(plan.id)}
+              disabled={plan.id === currentPlan}
+              className={`
+                w-full py-4 rounded-[22px] font-bold text-sm transition-all duration-300 active:scale-95
+                ${plan.id === currentPlan ? 'bg-white/5 text-white/20 cursor-default' : plan.buttonClass}
+              `}
+            >
+              {plan.id === currentPlan ? 'Уже подключено' : 'Выбрать план'}
+            </button>
           </div>
-          <p className="text-sm text-white/50 mb-4">
-            Введите промокод для получения бесплатных дней или скидки на подписку
-          </p>
-          <div className="flex gap-2 max-w-md">
+        ))}
+      </div>
+
+      {/* Promo & Legal Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Promo Code Card */}
+        <div className="p-8 rounded-[40px] bg-white/[0.02] border border-white/5 space-y-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+              <Ticket className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Промокод</h2>
+              <p className="text-sm text-white/40 font-medium">Активируйте бонусы и скидки</p>
+            </div>
+          </div>
+          <div className="flex gap-3">
             <input
               type="text"
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-              placeholder="Например: LAXLY2026"
-              className="glass-input flex-1 uppercase font-mono tracking-wider"
-              maxLength={20}
+              placeholder="XXXX-XXXX"
+              className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-white font-mono tracking-widest focus:outline-none focus:border-[#0A84FF]/50 transition-colors"
             />
             <button
               onClick={handleApplyPromo}
               disabled={applyingPromo || !promoCode.trim()}
-              className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-8 bg-white text-black hover:bg-white/90 rounded-2xl font-bold transition-all disabled:opacity-50"
             >
-              {applyingPromo ? 'Проверка...' : 'Активировать'}
-              <ArrowRight className="w-4 h-4" />
+              {applyingPromo ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Ок'}
             </button>
           </div>
-        </CardBody>
-      </Card>
+        </div>
 
-      {/* Plans Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {plans.map((plan) => (
-          <Card key={plan.id} className={`relative ${plan.id === currentPlan ? 'ring-2 ring-indigo-500/50' : ''}`}>
-            {plan.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 text-xs font-medium text-white z-10">
-                Популярный
-              </div>
-            )}
-            {plan.id === currentPlan && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-indigo-600 text-xs font-medium text-white z-10">
-                Текущий
-              </div>
-            )}
-            <CardBody className="p-6">
-              <div className="text-center mb-6">
-                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-                <p className="text-sm text-white/50 mb-4">{plan.description}</p>
-                <div className="mb-4">
-                  {plan.price > 0 ? (
-                    <>
-                      <span className="text-4xl font-bold">{plan.price.toLocaleString('ru-RU')}</span>
-                      <span className="text-white/50 ml-1">₽/мес</span>
-                    </>
-                  ) : (
-                    <span className="text-4xl font-bold">Бесплатно</span>
-                  )}
-                </div>
-              </div>
-
-              <ul className="space-y-3 mb-6">
-                {plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    {feature.included ? (
-                      <Check className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
-                    ) : (
-                      <X className="w-4 h-4 text-white/20 mt-0.5 flex-shrink-0" />
-                    )}
-                    <span className={`text-sm ${feature.included ? 'text-white/70' : 'text-white/30'}`}>
-                      {feature.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                onClick={() => handleSubscribe(plan.id)}
-                disabled={plan.id === currentPlan}
-                className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-                  plan.id === currentPlan
-                    ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                    : `${plan.button} text-white`
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {plan.id === currentPlan ? (
-                  'Текущий тариф'
-                ) : plan.price > 0 ? (
-                  <>
-                    Написать для оплаты
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                ) : (
-                  'Текущий тариф'
-                )}
-              </button>
-            </CardBody>
-          </Card>
-        ))}
+        {/* Security Info Card */}
+        <div className="p-8 rounded-[40px] bg-white/[0.02] border border-white/5 space-y-6">
+          <div className="flex flex-wrap gap-6 justify-center sm:justify-start">
+            <div className="flex items-center gap-2 text-white/40">
+              <CreditCard className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Безопасная оплата</span>
+            </div>
+            <div className="flex items-center gap-2 text-white/40">
+              <Zap className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Мгновенно</span>
+            </div>
+            <div className="flex items-center gap-2 text-white/40">
+              <Truck className="w-4 h-4" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Digital-доставка</span>
+            </div>
+            <div className="flex items-center gap-2 text-white/40">
+              <span className="text-[10px] font-black uppercase tracking-widest">T-Pay</span>
+            </div>
+            <div className="flex items-center gap-2 text-white/40">
+              <span className="text-[10px] font-black uppercase tracking-widest">СБП</span>
+            </div>
+          </div>
+          <p className="text-white/30 text-xs leading-relaxed font-medium">
+            Оплата производится через защищенный шлюз ЮKassa. Мы поддерживаем оплату картами, T-Pay и СБП. 
+            Мы не храним данные ваших карт. 
+            Доступ предоставляется автоматически сразу после подтверждения транзакции. 
+            Служба поддержки: <span className="text-white/60 underline">desmosymail@gmail.com</span>
+          </p>
+        </div>
       </div>
 
-      {/* Сравнение тарифов */}
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-indigo-400" />
-            Сравнение тарифов
-          </h2>
-        </CardHeader>
-        <CardBody>
+      {/* Detailed Comparison Table */}
+      <div className="space-y-8 pt-10">
+        <h2 className="text-2xl font-bold text-white text-center sm:text-left">Подробное сравнение</h2>
+        <div className="rounded-[40px] border border-white/5 bg-white/[0.01] overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-white/10">
-                  <th className="text-left py-3 px-4 text-white/60 font-medium">Возможность</th>
-                  <th className="text-center py-3 px-4 text-white/60 font-medium">Бесплатный</th>
-                  <th className="text-center py-3 px-4 text-blue-400 font-medium">Базовый</th>
-                  <th className="text-center py-3 px-4 text-indigo-400 font-medium">Pro</th>
-                  <th className="text-center py-3 px-4 text-amber-400 font-medium">Корпоративный</th>
+                <tr className="border-b border-white/5">
+                  <th className="py-6 px-8 text-[11px] font-black uppercase tracking-[0.2em] text-white/30">Параметр</th>
+                  <th className="py-6 px-8 text-sm font-bold text-white/60">Free</th>
+                  <th className="py-6 px-8 text-sm font-bold text-[#0A84FF]">Pro</th>
+                  <th className="py-6 px-8 text-sm font-bold text-amber-500">Бизнес</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
-                <tr>
-                  <td className="py-3 px-4">Документы/мес</td>
-                  <td className="text-center py-3 px-4 text-white/50">2</td>
-                  <td className="text-center py-3 px-4">15</td>
-                  <td className="text-center py-3 px-4">50</td>
-                  <td className="text-center py-3 px-4">200</td>
+              <tbody className="text-sm">
+                <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
+                  <td className="py-5 px-8 text-white/70 font-medium">Документы / мес</td>
+                  <td className="py-5 px-8 text-white/40">2</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">30</td>
+                  <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
-                <tr>
-                  <td className="py-3 px-4">Проверки договоров/мес</td>
-                  <td className="text-center py-3 px-4 text-white/50">1</td>
-                  <td className="text-center py-3 px-4">10</td>
-                  <td className="text-center py-3 px-4">25</td>
-                  <td className="text-center py-3 px-4">100</td>
+                <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
+                  <td className="py-5 px-8 text-white/70 font-medium">Проверки договоров</td>
+                  <td className="py-5 px-8 text-white/40">1</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">15</td>
+                  <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
-                <tr>
-                  <td className="py-3 px-4">AI вопросы/день</td>
-                  <td className="text-center py-3 px-4 text-white/50">3</td>
-                  <td className="text-center py-3 px-4">20</td>
-                  <td className="text-center py-3 px-4">100</td>
-                  <td className="text-center py-3 px-4">500</td>
+                <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
+                  <td className="py-5 px-8 text-white/70 font-medium">AI вопросы / день</td>
+                  <td className="py-5 px-8 text-white/40">3</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">50</td>
+                  <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
-                <tr>
-                  <td className="py-3 px-4">API доступ</td>
-                  <td className="text-center py-3 px-4"><X className="w-4 h-4 mx-auto text-white/20" /></td>
-                  <td className="text-center py-3 px-4"><X className="w-4 h-4 mx-auto text-white/20" /></td>
-                  <td className="text-center py-3 px-4"><Check className="w-4 h-4 mx-auto text-green-400" /></td>
-                  <td className="text-center py-3 px-4"><Check className="w-4 h-4 mx-auto text-green-400" /></td>
+                <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
+                  <td className="py-5 px-8 text-white/70 font-medium">Поддержка</td>
+                  <td className="py-5 px-8 text-white/40">Стандарт</td>
+                  <td className="py-5 px-8 text-[#0A84FF] font-bold">Приоритет</td>
+                  <td className="py-5 px-8 text-amber-500 font-bold italic">Персонально</td>
                 </tr>
-                <tr>
-                  <td className="py-3 px-4">Поддержка</td>
-                  <td className="text-center py-3 px-4 text-white/50">Базовая</td>
-                  <td className="text-center py-3 px-4">Email</td>
-                  <td className="text-center py-3 px-4">Приоритетная</td>
-                  <td className="text-center py-3 px-4">Выделенная</td>
+                <tr className="hover:bg-white/[0.01] transition-colors">
+                  <td className="py-5 px-8 text-white/70 font-medium">API Доступ</td>
+                  <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
+                  <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
+                  <td className="py-5 px-8"><Check className="w-5 h-5 text-green-500" /></td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </CardBody>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

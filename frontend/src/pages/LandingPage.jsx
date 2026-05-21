@@ -17,10 +17,10 @@ export function LandingPage() {
   ]
 
   const plans = [
-    { name: 'Бесплатный', price: '0 ₽', features: ['2 документа/мес', '1 проверка договора', '3 вопроса AI/день'], current: true },
-    { name: 'Базовый', price: '490 ₽/мес', features: ['15 документов/мес', '10 проверок', '20 вопросов AI/день'] },
-    { name: 'Pro', price: '1 490 ₽/мес', features: ['50 документов/мес', '25 проверок', '100 вопросов AI/день', 'Судебная практика', 'Мониторинг законов'], popular: true },
-    { name: 'Бизнес', price: '4 990 ₽/мес', features: ['200 документов/мес', '100 проверок', '500 вопросов AI/день', 'API доступ', 'Приоритетная поддержка'] },
+    { name: 'Бесплатный', price: '0 ₽', features: ['5 документов/мес', '3 проверки договора', 'Базовая поддержка'], current: true },
+    { name: 'Базовый', price: '990 ₽/мес', features: ['30 документов/мес', '20 проверок', 'Приоритетная поддержка'] },
+    { name: 'Pro', price: '2 990 ₽/мес', features: ['200 документов/мес', '100 проверок', 'API доступ', 'Судебная практика', 'Мониторинг законов'], popular: true },
+    { name: 'Бизнес', price: '9 990 ₽/мес', features: ['Безлимит документов', 'Безлимит проверок', 'Командный доступ', 'API доступ', 'Персональный менеджер'] },
   ]
 
   return (
@@ -167,8 +167,10 @@ export function LandingPage() {
             <div className="space-y-4">
               <h4 className="font-medium text-sm" style={{ color: isLight ? 'var(--text-primary)' : 'white' }}>Правовая информация</h4>
               <div className="space-y-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                <p>Пащенко Егор Викторович</p>
-                <p>ИНН: 644011277300</p>
+                <p>Пащенко Ян Викторович</p>
+                <p>ИНН: 644010686500</p>
+                <p>LegalID: LA0005406707</p>
+                <p>MerchantID: MA0006349722</p>
                 <p>Адрес: г. Саратов</p>
                 <p className="pt-1 text-[10px] opacity-70">Сервера и базы данных локализованы в РФ (ФЗ-152).</p>
               </div>
@@ -188,8 +190,17 @@ export function LandingPage() {
           </div>
 
           <div className="pt-8 border-t border-white/[0.04] flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-              © 2026 Laxly Law AI. Все права защищены.
+            <div className="flex flex-col gap-2">
+              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
+                © 2026 Laxly Law AI. Все права защищены.
+              </div>
+              <div className="flex gap-4 text-[9px] font-black uppercase tracking-widest opacity-30" style={{ color: 'var(--text-tertiary)' }}>
+                <span>Мир</span>
+                <span>Visa</span>
+                <span>Mastercard</span>
+                <span>T-Pay</span>
+                <span>СБП</span>
+              </div>
             </div>
             <div className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
               Сделано в России для юристов нового поколения
