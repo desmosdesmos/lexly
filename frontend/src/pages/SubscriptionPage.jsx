@@ -103,7 +103,19 @@ export function SubscriptionPage() {
     }
   }
 
-  // ... (handleApplyPromo unchanged)
+  const handleApplyPromo = async () => {
+    if (!promoCode.trim()) return
+    setApplyingPromo(true)
+    try {
+      await api.post('/payments/activate-code', { code: promoCode.trim() })
+      toast.success('Тариф успешно активирован!')
+      setTimeout(() => window.location.reload(), 1500)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Ошибка кода')
+    } finally {
+      setApplyingPromo(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -196,100 +208,6 @@ export function SubscriptionPage() {
         })}
       </div>
 
-  const handleApplyPromo = async () => {
-    if (!promoCode.trim()) return
-    setApplyingPromo(true)
-    try {
-      await api.post('/payments/activate-code', { code: promoCode.trim() })
-      toast.success('Тариф успешно активирован!')
-      setTimeout(() => window.location.reload(), 1500)
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Ошибка кода')
-    } finally {
-      setApplyingPromo(false)
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 text-[#0A84FF] animate-spin" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-20 px-2 sm:px-0">
-      {/* Header Section */}
-      <div className="text-center space-y-4 pt-4">
-        <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-white">Выбор тарифа</h1>
-        <p className="text-white/40 text-lg max-w-xl mx-auto">
-          Прозрачные цены без скрытых платежей. Выберите план, который подходит именно вам.
-        </p>
-      </div>
-
-      {/* Plans Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
-        {plans.map((plan) => (
-          <div 
-            key={plan.id}
-            className={`
-              relative flex flex-col p-8 rounded-[40px] border transition-all duration-500
-              ${plan.id === currentPlan 
-                ? 'bg-white/[0.03] border-[#0A84FF]/50 shadow-[0_0_40px_rgba(10,132,255,0.1)]' 
-                : 'bg-white/[0.02] border-white/5 hover:border-white/10'
-              }
-            `}
-          >
-            {plan.popular && !currentPlan.includes(plan.id) && (
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-[#0A84FF] text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
-                Популярный
-              </div>
-            )}
-            
-            {plan.id === currentPlan && (
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-green-500 text-[10px] font-black uppercase tracking-widest text-white shadow-lg">
-                Ваш текущий тариф
-              </div>
-            )}
-
-            <div className="mb-8">
-              <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-              <p className="text-sm text-white/30 font-medium">{plan.description}</p>
-            </div>
-
-            <div className="mb-10 flex items-baseline gap-1">
-              <span className="text-5xl font-black text-white">{plan.price}</span>
-              <span className="text-lg text-white/40 font-bold">₽/мес</span>
-            </div>
-
-            <div className="flex-1 space-y-4 mb-10">
-              {plan.features.map((feature, idx) => (
-                <div key={idx} className="flex items-center gap-3">
-                  <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${feature.included ? 'bg-[#0A84FF]/10 text-[#0A84FF]' : 'bg-white/5 text-white/10'}`}>
-                    {feature.included ? <Check className="w-3 h-3 stroke-[3]" /> : <X className="w-3 h-3" />}
-                  </div>
-                  <span className={`text-[15px] ${feature.included ? 'text-white/70 font-medium' : 'text-white/20'}`}>
-                    {feature.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => handleSubscribe(plan.id)}
-              disabled={plan.id === currentPlan}
-              className={`
-                w-full py-4 rounded-[22px] font-bold text-sm transition-all duration-300 active:scale-95
-                ${plan.id === currentPlan ? 'bg-white/5 text-white/20 cursor-default' : plan.buttonClass}
-              `}
-            >
-              {plan.id === currentPlan ? 'Уже подключено' : 'Выбрать план'}
-            </button>
-          </div>
-        ))}
-      </div>
-
       {/* Promo & Legal Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
         {/* Promo Code Card */}
@@ -369,20 +287,14 @@ export function SubscriptionPage() {
               <tbody className="text-sm">
                 <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
                   <td className="py-5 px-8 text-white/70 font-medium">Документы / мес</td>
-                  <td className="py-5 px-8 text-white/40">2</td>
-                  <td className="py-5 px-8 text-white/90 font-bold">30</td>
+                  <td className="py-5 px-8 text-white/40">5</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">200</td>
                   <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
                 <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
                   <td className="py-5 px-8 text-white/70 font-medium">Проверки договоров</td>
-                  <td className="py-5 px-8 text-white/40">1</td>
-                  <td className="py-5 px-8 text-white/90 font-bold">15</td>
-                  <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
-                </tr>
-                <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
-                  <td className="py-5 px-8 text-white/70 font-medium">AI вопросы / день</td>
                   <td className="py-5 px-8 text-white/40">3</td>
-                  <td className="py-5 px-8 text-white/90 font-bold">50</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">100</td>
                   <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
                 <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
@@ -394,7 +306,7 @@ export function SubscriptionPage() {
                 <tr className="hover:bg-white/[0.01] transition-colors">
                   <td className="py-5 px-8 text-white/70 font-medium">API Доступ</td>
                   <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
-                  <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
+                  <td className="py-5 px-8"><Check className="w-5 h-5 text-green-500" /></td>
                   <td className="py-5 px-8"><Check className="w-5 h-5 text-green-500" /></td>
                 </tr>
               </tbody>
