@@ -4,11 +4,7 @@ from sqlalchemy import select, func
 from typing import List
 from decimal import Decimal
 from datetime import datetime
-from datetime import date as date_type
 import uuid
-import json
-import secrets
-import string
 import logging
 from pydantic import BaseModel
 
@@ -35,7 +31,75 @@ from app.services.yookassa_service import yookassa_service
 
 router = APIRouter(prefix="/payments", tags=["Оплата"])
 
-# ... (PLANS and get_plans unchanged)
+# Тарифные планы
+PLANS = [
+    PaymentPlan(
+        id=SubscriptionPlan.FREE,
+        name="Бесплатный",
+        price=Decimal("0"),
+        currency="RUB",
+        billing_period=None,
+        features=PlanFeatures(
+            documents_per_month=5,
+            contracts_per_month=3,
+            priority_support=False,
+            api_access=False,
+        ),
+    ),
+    PaymentPlan(
+        id=SubscriptionPlan.PRO,
+        name="Pro",
+        price=Decimal("290"),
+        currency="RUB",
+        billing_period="monthly",
+        features=PlanFeatures(
+            documents_per_month=50,
+            contracts_per_month=25,
+            priority_support=True,
+            api_access=False,
+        ),
+    ),
+    PaymentPlan(
+        id=SubscriptionPlan.BUSINESS,
+        name="Бизнес",
+        price=Decimal("990"),
+        currency="RUB",
+        billing_period="monthly",
+        features=PlanFeatures(
+            documents_per_month=200,
+            contracts_per_month=100,
+            priority_support=True,
+            api_access=True,
+        ),
+    ),
+    PaymentPlan(
+        id=SubscriptionPlan.ENTERPRISE,
+        name="Корпоративный",
+        price=Decimal("1990"),
+        currency="RUB",
+        billing_period="monthly",
+        features=PlanFeatures(
+            documents_per_month=-1,
+            contracts_per_month=-1,
+            priority_support=True,
+            api_access=True,
+            team_members=10,
+            custom_integrations=True,
+        ),
+    ),
+]
+
+
+@router.get(
+    "/plans",
+    summary="Тарифные планы",
+)
+async def get_plans():
+    """
+    Получить список всех тарифных планов.
+    """
+    return {"plans": PLANS}
+
 
 @router.post(
     "/subscribe",
@@ -71,10 +135,10 @@ async def subscribe(
         )
     
     # Создание записи платежа в БД (PENDING)
-    payment_id = uuid.uuid4()
+    payment_id = str(uuid.uuid4())
     payment = Payment(
         id=payment_id,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         amount=plan.price,
         currency=plan.currency,
         status=PaymentStatus.PENDING,
@@ -138,7 +202,6 @@ async def payment_webhook(
         if event == "payment.succeeded":
             metadata = obj.get("metadata", {})
             payment_id = metadata.get("payment_id")
-            user_id = metadata.get("user_id")
             
             if not payment_id:
                 logger.error("No payment_id in YooKassa webhook metadata")
@@ -232,13 +295,13 @@ async def payment_history(
     Получить историю платежей пользователя.
     """
     offset = (page - 1) * limit
-    
+
     # Общее количество
     count_result = await db.execute(
         select(func.count()).select_from(Payment).where(Payment.user_id == current_user.id)
     )
     total = count_result.scalar() or 0
-    
+
     # Список платежей
     payments_result = await db.execute(
         select(Payment)
@@ -248,7 +311,7 @@ async def payment_history(
         .limit(limit)
     )
     payments = payments_result.scalars().all()
-    
+
     items = [
         PaymentHistoryItem(
             id=str(p.id),
@@ -261,7 +324,7 @@ async def payment_history(
         )
         for p in payments
     ]
-    
+
     return PaymentHistoryResponse(
         items=items,
         total=total,
@@ -293,7 +356,7 @@ async def admin_generate_code(
     """
     import secrets
     import string
-    
+
     # Генерируем уникальный код
     while True:
         code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
@@ -301,7 +364,7 @@ async def admin_generate_code(
         existing = await db.execute(select(ActivationCode).where(ActivationCode.code == code))
         if not existing.scalar_one_or_none():
             break
-    
+
     # Сохраняем в БД
     activation_code = ActivationCode(
         code=code,
@@ -310,7 +373,7 @@ async def admin_generate_code(
     )
     db.add(activation_code)
     await db.commit()
-    
+
     return GenerateCodeResponse(
         code=code,
         plan_id=plan_id,
@@ -336,25 +399,25 @@ async def activate_subscription_code(
     Код можно использовать только 1 раз.
     """
     code = request.code.upper().strip()
-    
+
     # Ищем код в БД
     result = await db.execute(
         select(ActivationCode).where(ActivationCode.code == code)
     )
     activation_code = result.scalar_one_or_none()
-    
+
     if not activation_code:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Неверный код активации",
         )
-    
+
     if activation_code.is_used:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Этот код уже использован",
         )
-    
+
     plan_id = activation_code.plan_id
     months = activation_code.months
 
@@ -373,7 +436,7 @@ async def activate_subscription_code(
         )
         db.add(subscription)
         await db.flush()
-    
+
     from datetime import date as date_type
     import calendar
 
@@ -381,12 +444,12 @@ async def activate_subscription_code(
     today = date_type.today()
     year = today.year
     month = today.month + months
-    
+
     # Переносим год если месяц > 12
     while month > 12:
         year += 1
         month -= 1
-    
+
     # Последний день месяца
     last_day = calendar.monthrange(year, month)[1]
     end_date = date_type(year, month, min(today.day, last_day))
@@ -396,24 +459,21 @@ async def activate_subscription_code(
     subscription.status = SubscriptionStatus.ACTIVE
     subscription.end_date = end_date
     subscription.auto_renew = True
-    
+
     # Помечаем код как использованный
     activation_code.is_used = True
     activation_code.used_by_user_id = str(current_user.id)
     activation_code.used_at = datetime.utcnow()
 
-    # TODO: Payment запись не создаём для SQLite (UUID проблема)
-    # В продакшене с PostgreSQL - создавать Payment
-    
     # Обновляем лимиты
     await usage_limit_service.update_plan_limits(
         str(current_user.id),
         plan_id,
         db,
     )
-    
+
     await db.commit()
-    
+
     # Уведомление в Telegram
     try:
         await telegram_notifier.notify_subscription_activated(
@@ -423,10 +483,9 @@ async def activate_subscription_code(
         )
     except Exception as e:
         logger.warning(f"Failed to send Telegram notification: {e}")
-    
+
     return {
         "message": "Подписка активирована!",
         "plan_id": plan_id,
         "end_date": subscription.end_date.isoformat(),
     }
-

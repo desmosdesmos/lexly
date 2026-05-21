@@ -86,7 +86,7 @@ export function LoginPage() {
                   locale="ru"
                   shape="pill"
                   size="large"
-                  width="100%"
+                  width="350"
                 />
               </div>
               <div className="flex items-center gap-4 mb-6">
