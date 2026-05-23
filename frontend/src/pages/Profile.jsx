@@ -178,8 +178,8 @@ export function Profile() {
   const currentPlan = usage?.plan?.toLowerCase() || 'free'
   
   // Fix data paths: API returns flattened structure
-  const docLimit = usage?.documents
-  const contractLimit = usage?.contracts
+  const docLimit = usage?.limits?.documents || usage?.documents
+  const contractLimit = usage?.limits?.contracts || usage?.contracts
 
   const docPercent = docLimit ? (docLimit.max === -1 ? 100 : Math.min((docLimit.used / Math.max(docLimit.max, 1)) * 100, 100)) : 0
   const contractPercent = contractLimit ? (contractLimit.max === -1 ? 100 : Math.min((contractLimit.used / Math.max(contractLimit.max, 1)) * 100, 100)) : 0
@@ -206,9 +206,10 @@ export function Profile() {
            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.1em] border ${
             currentPlan === 'pro' ? 'bg-[#0A84FF]/10 text-[#0A84FF] border-[#0A84FF]/20' :
             currentPlan === 'business' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+            currentPlan === 'enterprise' ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-none' :
             'bg-white/5 text-white/30 border-white/10'
           }`}>
-            Тариф: {currentPlan === 'free' ? 'Бесплатный' : currentPlan === 'pro' ? 'Pro' : 'Бизнес'}
+            Тариф: {currentPlan === 'free' ? 'Бесплатный' : currentPlan === 'pro' ? 'Pro' : currentPlan === 'business' ? 'Бизнес' : 'Корпоративный'}
           </span>
         </div>
       </div>
@@ -406,7 +407,7 @@ export function Profile() {
             <div className="mb-8">
               <p className="text-[10px] font-black uppercase text-white/20 mb-1">Текущий план</p>
               <h3 className="text-3xl font-black text-white uppercase italic">
-                {currentPlan === 'free' ? 'Free' : currentPlan === 'pro' ? 'Pro' : 'Business'}
+                {currentPlan === 'free' ? 'Free' : currentPlan === 'pro' ? 'Pro' : currentPlan === 'business' ? 'Business' : 'Corporate'}
               </h3>
             </div>
 

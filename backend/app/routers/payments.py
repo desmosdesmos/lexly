@@ -181,6 +181,97 @@ async def subscribe(
         )
 
 
+@router.get(
+    "/check/{payment_id}",
+    summary="Проверить статус платежа вручную",
+)
+async def check_payment_status(
+    payment_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Вручную проверить статус платежа в ЮKassa и обновить подписку.
+    Полезно, если webhook не дошел.
+    """
+    # 1. Ищем платеж в нашей БД
+    payment_result = await db.execute(
+        select(Payment).where(Payment.id == payment_id)
+    )
+    payment = payment_result.scalar_one_or_none()
+    
+    if not payment:
+        raise HTTPException(status_code=404, detail="Платеж не найден")
+    
+    if not payment.external_payment_id:
+        return {"status": payment.status, "message": "Внешний ID платежа отсутствует"}
+
+    if payment.status == PaymentStatus.COMPLETED:
+        return {"status": "completed", "message": "Платеж уже обработан"}
+
+    # 2. Запрашиваем ЮKassa
+    try:
+        yookassa_payment = await yookassa_service.get_payment(payment.external_payment_id)
+        
+        if yookassa_payment.status == "succeeded":
+            # Обновляем как при вебхуке
+            payment.status = PaymentStatus.COMPLETED
+            payment.completed_at = datetime.utcnow()
+            payment.transaction_id = yookassa_payment.id
+            
+            # Обновление подписки
+            sub_result = await db.execute(
+                select(Subscription).where(Subscription.user_id == payment.user_id)
+            )
+            subscription = sub_result.scalar_one_or_none()
+            
+            if not subscription:
+                subscription = Subscription(
+                    user_id=payment.user_id,
+                    plan_type=payment.plan_type,
+                    status=SubscriptionStatus.ACTIVE,
+                    auto_renew=True
+                )
+                db.add(subscription)
+            else:
+                subscription.plan_type = payment.plan_type
+                subscription.status = SubscriptionStatus.ACTIVE
+                subscription.auto_renew = True
+            
+            # Обновление лимитов
+            await usage_limit_service.update_plan_limits(
+                str(payment.user_id),
+                payment.plan_type,
+                db,
+            )
+            
+            # Уведомление в Telegram
+            try:
+                user_result = await db.execute(select(User).where(User.id == payment.user_id))
+                user = user_result.scalar_one_or_none()
+                if user:
+                    await telegram_notifier.notify_subscription_activated(
+                        user_email=user.email,
+                        plan_id=payment.plan_type,
+                        code="MANUAL_CHECK"
+                    )
+            except Exception as te:
+                logger.warning(f"Failed to send Telegram notification: {te}")
+
+            await db.commit()
+            return {"status": "completed", "message": "Платеж успешно подтвержден!"}
+            
+        elif yookassa_payment.status == "canceled":
+            payment.status = PaymentStatus.FAILED
+            await db.commit()
+            return {"status": "failed", "message": "Платеж отменен в ЮKassa"}
+            
+        return {"status": yookassa_payment.status, "message": "Платеж еще в обработке"}
+        
+    except Exception as e:
+        logger.error(f"Error checking payment {payment_id}: {e}")
+        return {"status": "error", "message": str(e)}
+
+
 @router.post(
     "/webhook",
     summary="Webhook от платёжной системы",

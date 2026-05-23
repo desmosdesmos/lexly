@@ -129,21 +129,80 @@ async def extract_text_from_file(file_path: Path) -> str:
         )
 
 
+class ReviewTextRequest(BaseModel):
+    text: str = Field(..., description="Текст договора для анализа", min_length=100)
+    filename: Optional[str] = Field("text_input.txt", description="Имя файла (опционально)")
+
+
+async def _process_contract_analysis(
+    db: AsyncSession,
+    current_user: User,
+    extracted_text: str,
+    filename: str,
+    file_path: Optional[str] = None
+):
+    """Общая логика обработки анализа договора."""
+    # AI анализ
+    analysis_result = await ai_service.review_contract(extracted_text)
+    
+    # Определение уровня риска
+    risks = analysis_result.get("risks", [])
+    if not risks:
+        risk_level = "low"
+    else:
+        severities = [r.get("severity", "low") for r in risks]
+        if "critical" in severities:
+            risk_level = "critical"
+        elif "high" in severities:
+            risk_level = "high"
+        elif "medium" in severities:
+            risk_level = "medium"
+        else:
+            risk_level = "low"
+    
+    # Создание записи в БД
+    review = ContractReview(
+        user_id=current_user.id,
+        original_file_name=filename,
+        file_path=file_path or "text_input",
+        extracted_text=extracted_text[:10000],  # Ограничиваем длину
+        analysis_result=json.dumps(analysis_result, ensure_ascii=False),
+        score=int(analysis_result.get("score", 100)),
+        risks=json.dumps(risks, ensure_ascii=False),
+        recommendations=json.dumps(analysis_result.get("recommendations", []), ensure_ascii=False),
+        risk_level=risk_level,
+        status="completed"
+    )
+    
+    db.add(review)
+    await db.commit()
+    await db.refresh(review)
+
+    # Инкремент использования
+    await limit_service.increment_contracts(current_user.id, db)
+    
+    return {
+        "id": str(review.id),
+        "original_file_name": review.original_file_name,
+        "status": "completed",
+        "risk_level": review.risk_level,
+        "analysis": analysis_result,
+        "created_at": str(review.created_at),
+    }
+
+
 @router.post(
     "/review",
-    summary="Проверка договора через AI",
+    summary="Проверка договора (загрузка файла)",
     status_code=status.HTTP_200_OK,
 )
-async def review_contract(
+async def review_contract_file(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Загрузить договор для AI-анализа на риски.
-    
-    Поддерживаемые форматы: PDF, DOC, DOCX, TXT
-    Максимальный размер: 10 МБ
+    Загрузить файл договора для AI-анализа на риски.
     """
     # Проверка размера файла
     file_content = await file.read()
@@ -162,18 +221,14 @@ async def review_contract(
         )
     
     # Проверка лимитов
-    can_use, limit_info = await limit_service.check_contract_limit(
-        user_id=current_user.id,
-        db=db,
-    )
-
+    can_use, limit_info = await limit_service.check_contract_limit(user_id=current_user.id, db=db)
     if not can_use:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "type": "limit_exceeded",
                 "resource": "contracts",
-                "message": f"Вы достигли лимита проверки договоров ({limit_info['used']}/{limit_info['max']}). Перейдите на Pro.",
+                "message": "Лимит проверок исчерпан. Перейдите на Pro.",
                 "limit_info": limit_info,
             },
         )
@@ -181,76 +236,64 @@ async def review_contract(
     # Сохранение файла
     file_id = str(uuid.uuid4())
     file_path = UPLOAD_DIR / f"{file_id}{file_ext}"
-    
     with open(file_path, "wb") as f:
         f.write(file_content)
     
     try:
-        # Извлечение текста
         extracted_text = await extract_text_from_file(file_path)
-        
         if not extracted_text or len(extracted_text.strip()) < 100:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Не удалось извлечь достаточно текста из документа",
-            )
-        
-        # AI анализ
-        analysis_result = await ai_service.review_contract(extracted_text)
-        
-        # Определение уровня риска
-        risks = analysis_result.get("risks", [])
-        if not risks:
-            risk_level = "low"
-        else:
-            severities = [r.get("severity", "low") for r in risks]
-            if "critical" in severities:
-                risk_level = "critical"
-            elif "high" in severities:
-                risk_level = "high"
-            elif "medium" in severities:
-                risk_level = "medium"
-            else:
-                risk_level = "low"
-        
-        # Создание записи в БД
-        review = ContractReview(
-            user_id=current_user.id,
-            original_file_name=file.filename or "unknown",
-            file_path=str(file_path),
-            extracted_text=extracted_text[:10000],  # Ограничиваем длину
-            analysis_result=json.dumps(analysis_result, ensure_ascii=False),  # Конвертируем dict в JSON строку
-            risks=json.dumps(risks, ensure_ascii=False),  # Конвертируем list в JSON строку
-            recommendations=json.dumps(analysis_result.get("recommendations", []), ensure_ascii=False),  # Конвертируем list в JSON строку
-            risk_level=risk_level,
+            raise HTTPException(status_code=400, detail="Не удалось извлечь достаточно текста")
+            
+        return await _process_contract_analysis(
+            db=db,
+            current_user=current_user,
+            extracted_text=extracted_text,
+            filename=file.filename or "unknown",
+            file_path=str(file_path)
         )
-        
-        db.add(review)
-        await db.commit()
-        await db.refresh(review)
-
-        # Инкремент использования
-        await limit_service.increment_contracts(current_user.id, db)
-        
-        logger.info(f"Contract reviewed: {review.id} for user {current_user.id}")
-        
-        return {
-            "id": str(review.id),
-            "original_file_name": review.original_file_name,
-            "status": "completed",
-            "risk_level": review.risk_level,
-            "analysis": json.loads(review.analysis_result) if isinstance(review.analysis_result, str) else review.analysis_result,
-            "created_at": str(review.created_at),
-        }
-        
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Contract review error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/review-text",
+    summary="Проверка договора (вставка текста)",
+    status_code=status.HTTP_200_OK,
+)
+async def review_contract_text(
+    request: ReviewTextRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Вставить текст договора напрямую для AI-анализа.
+    """
+    # Проверка лимитов
+    can_use, limit_info = await limit_service.check_contract_limit(user_id=current_user.id, db=db)
+    if not can_use:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка анализа договора: {str(e)}",
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "type": "limit_exceeded",
+                "resource": "contracts",
+                "message": "Лимит проверок исчерпан.",
+                "limit_info": limit_info,
+            },
         )
+
+    try:
+        return await _process_contract_analysis(
+            db=db,
+            current_user=current_user,
+            extracted_text=request.text,
+            filename=request.filename
+        )
+    except Exception as e:
+        logger.error(f"Contract text review error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get(

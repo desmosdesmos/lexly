@@ -1,209 +1,145 @@
-"""Сервис для парсинга изменений законодательства с garant.ru."""
 import httpx
 import logging
 from typing import Dict, Any, List, Optional
 from bs4 import BeautifulSoup
 from datetime import datetime
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
 
 class GarantParser:
-    """Парсер сайта garant.ru для мониторинга изменений законодательства."""
+    """Глубокий парсер законодательства РФ."""
 
     BASE_URL = "https://www.garant.ru"
-    # URL страницы с обзором изменений
-    REVIEW_URL = f"{BASE_URL}/subscribe/fed/"
+    # Набор самых надежных источников новостей законодательства
+    SOURCES = [
+        "/news/changes/",      # Основной обзор
+        "/news/actual/",       # Актуальное
+        "/news/",              # Все новости
+        "/calendar/federal/",  # Календарь изменений
+    ]
 
     def __init__(self):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Language": "ru-RU,ru;q=0.9",
         }
 
-    async def get_latest_changes(self, limit: int = 20) -> List[Dict[str, Any]]:
+    async def get_latest_changes(self, limit: int = 50) -> List[Dict[str, Any]]:
         """
-        Получить последние изменения законодательства.
-
-        Args:
-            limit: Количество изменений
-
-        Returns:
-            Список изменений
+        Собирает изменения из нескольких разделов для максимальной полноты.
         """
-        try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(
-                    self.REVIEW_URL,
-                    headers=self.headers,
-                )
-                response.raise_for_status()
-                
-                return self._parse_changes(response.text, limit)
-                
-        except httpx.HTTPError as e:
-            logger.error(f"Error fetching legislation changes: {str(e)}")
-            return []
+        all_changes = []
+        seen_urls = set()
 
-    def _parse_changes(self, html: str, limit: int) -> List[Dict[str, Any]]:
-        """Парсинг страницы с изменениями."""
-        try:
-            soup = BeautifulSoup(html, "html.parser")
-            results = []
-            
-            # Ищем блоки с новостями/изменениями
-            # Garant использует различные классы, пробуем несколько вариантов
-            news_items = soup.find_all("div", class_="news-item")
-            if not news_items:
-                news_items = soup.find_all("li", class_="news")
-            if not news_items:
-                news_items = soup.find_all("div", class_="item")
-            if not news_items:
-                # Ищем все ссылки в основном контенте
-                content_area = soup.find("div", class_="content") or soup.find("main")
-                if content_area:
-                    news_items = content_area.find_all("a")
-            
-            for item in news_items[:limit]:
-                change_data = self._extract_change_data(item)
-                if change_data:
-                    results.append(change_data)
-            
-            return results
-            
-        except Exception as e:
-            logger.error(f"Error parsing changes: {str(e)}")
-            return []
+        async with httpx.AsyncClient(timeout=40.0, follow_redirects=True) as client:
+            for path in self.SOURCES:
+                url = urljoin(self.BASE_URL, path)
+                try:
+                    response = await client.get(url, headers=self.headers)
+                    if response.status_code == 200:
+                        changes = self._parse_changes(response.text)
+                        for ch in changes:
+                            if ch['url'] not in seen_urls:
+                                all_changes.append(ch)
+                                seen_urls.add(ch['url'])
+                except Exception as e:
+                    logger.error(f"Error scraping {url}: {e}")
+                
+                if len(all_changes) >= limit + 20:
+                    break
+
+        return all_changes[:limit]
+
+    def _parse_changes(self, html: str) -> List[Dict[str, Any]]:
+        soup = BeautifulSoup(html, "html.parser")
+        results = []
+        
+        # Контейнеры новостей
+        items = soup.select(".news-item, .list-news__item, .js-news-item, .b-news-item, div.item, article")
+        
+        if not items:
+            content = soup.find("div", class_="content") or soup.find("main")
+            if content:
+                items = content.find_all("a", href=True)
+
+        for item in items:
+            data = self._extract_change_data(item)
+            if data and data.get('title') and len(data['title']) > 20:
+                results.append(data)
+        
+        return results
 
     def _extract_change_data(self, item: BeautifulSoup) -> Optional[Dict[str, Any]]:
-        """Извлечение данных об изменении."""
         try:
-            # Заголовок
-            title_tag = item.find("a") or item.find("h3") or item
-            title = title_tag.text.strip() if hasattr(title_tag, 'text') else item.text.strip()
-            
-            if not title or len(title) < 10:
+            link_tag = item if (item.name == "a" and item.get("href")) else item.find("a", href=True)
+            if not link_tag:
                 return None
+                
+            href = link_tag.get("href", "")
+            if not href or "javascript:" in href or "#" in href:
+                return None
+                
+            url = urljoin(self.BASE_URL, href)
             
-            # Ссылка
-            link_tag = item.find("a")
-            url = link_tag.get("href", "") if link_tag else ""
-            if url and not url.startswith("http"):
-                url = f"{self.BASE_URL}{url}"
+            title_tag = item.find(["h2", "h3", "h4", "span"]) or link_tag
+            title = title_tag.get_text().strip()
             
-            # Дата
-            date_tag = item.find("span", class_="date") or item.find("time")
+            if not title or len(title) < 15 or "http" in title[:20]:
+                return None
+
+            import re
             date_str = ""
+            date_tag = item.select_one(".date, time, .news-date, .list-news__date")
             if date_tag:
-                date_str = date_tag.text.strip()
-            else:
-                # Пробуем извлечь дату из текста
-                import re
-                date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', title)
+                date_str = date_tag.get_text().strip()
+            
+            full_text = item.get_text()
+            if not date_str:
+                date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', full_text)
                 if date_match:
                     date_str = date_match.group(1)
+
+            description = ""
+            desc_tag = item.select_one(".description, .text, .news-text, p")
+            if desc_tag:
+                description = desc_tag.get_text().strip()
             
-            # Описание
-            desc_tag = item.find("p") or item.find("div", class_="description")
-            description = desc_tag.text.strip() if desc_tag else ""
-            
+            if not description and len(full_text) > len(title):
+                description = full_text.replace(title, "").replace(date_str, "").strip()
+
             return {
                 "title": title,
                 "url": url,
-                "date": date_str,
-                "description": description,
+                "date": date_str or datetime.now().strftime("%d.%m.%Y"),
+                "description": description[:400].strip() + "..." if len(description) > 400 else description
             }
-            
-        except Exception as e:
-            logger.error(f"Error extracting change data: {str(e)}")
+        except Exception:
             return None
 
-    async def search_law_changes(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Поиск изменений законодательства по конкретному запросу."""
-        search_url = f"{self.BASE_URL}/search/"
-        params = {"q": query}
+    async def search_law_changes(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Поиск через прямой запрос к разделу новостей."""
+        # Гарант часто блокирует прямой /search/, поэтому ищем в новостях расширенно
+        all_news = await self.get_latest_changes(limit=150)
+        query_words = query.lower().split()
         
-        try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(search_url, params=params, headers=self.headers)
-                response.raise_for_status()
-                
-                soup = BeautifulSoup(response.text, "html.parser")
-                results = []
-                
-                # Ищем блоки результатов поиска
-                items = soup.find_all("div", class_="search-result") or soup.find_all("div", class_="item")
-                
-                for item in items[:limit]:
-                    title_tag = item.find("a")
-                    if not title_tag: continue
-                    
-                    title = title_tag.text.strip()
-                    url = title_tag.get("href", "")
-                    if url and not url.startswith("http"):
-                        url = f"{self.BASE_URL}{url}"
-                        
-                    date_tag = item.find("span", class_="date")
-                    date = date_tag.text.strip() if date_tag else ""
-                    
-                    desc_tag = item.find("div", class_="snippet") or item.find("p")
-                    description = desc_tag.text.strip() if desc_tag else ""
-                    
-                    results.append({
-                        "title": title,
-                        "url": url,
-                        "date": date,
-                        "description": description
-                    })
-                
-                return results
-        except Exception as e:
-            logger.error(f"Error searching law changes: {str(e)}")
-            return []
+        filtered = []
+        for news in all_news:
+            matches = 0
+            for word in query_words:
+                if word in news['title'].lower() or word in news['description'].lower():
+                    matches += 1
+            if matches > 0:
+                filtered.append((matches, news))
+        
+        # Сортируем по количеству совпадений
+        filtered.sort(key=lambda x: x[0], reverse=True)
+        return [x[1] for x in filtered[:limit]]
+
     async def get_legislation_review(self, date: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """
-        Получить ежедневный обзор изменений.
+        changes = await self.get_latest_changes(limit=20)
+        return {"date": date or "latest", "changes": changes, "total": len(changes), "url": self.BASE_URL}
 
-        Args:
-            date: Дата обзора в формате YYYY-MM-DD
-
-        Returns:
-            Структурированный обзор
-        """
-        if not date:
-            date = datetime.now().strftime("%Y%m%d")
-        else:
-            date = date.replace("-", "")
-        
-        review_url = f"{self.BASE_URL}/subscribe/fed/{date}/"
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(
-                    review_url,
-                    headers=self.headers,
-                )
-                
-                if response.status_code == 404:
-                    # Если обзор за эту дату не найден, пробуем главную страницу
-                    response = await client.get(self.REVIEW_URL, headers=self.headers)
-                
-                response.raise_for_status()
-                
-                changes = self._parse_changes(response.text, limit=50)
-                
-                return {
-                    "date": date,
-                    "url": review_url,
-                    "changes": changes,
-                    "total": len(changes),
-                }
-                
-        except httpx.HTTPError as e:
-            logger.error(f"Error fetching legislation review: {str(e)}")
-            return None
-
-
-# Singleton instance
 garant_parser = GarantParser()

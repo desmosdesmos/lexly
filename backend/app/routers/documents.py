@@ -46,6 +46,9 @@ async def generate_document(
     - claim - исковое заявление
     - complaint - жалоба
     - demand - досудебная претензия
+    - contract_sale - договор купли-продажи
+    - contract_employment - трудовой договор
+    - power_of_attorney - доверенность
     """
     # Проверка лимитов
     can_use, limit_info = await limit_service.check_document_limit(
@@ -65,35 +68,41 @@ async def generate_document(
         )
     
     try:
-        # Подготовка данных для AI
-        data = {
-            "court_name": request.data.get("court_name", ""),
-            "plaintiff_name": request.data.get("plaintiff", {}).get("name", ""),
-            "plaintiff_inn": request.data.get("plaintiff", {}).get("inn", ""),
-            "plaintiff_address": request.data.get("plaintiff", {}).get("address", ""),
-            "defendant_name": request.data.get("defendant", {}).get("name", ""),
-            "defendant_inn": request.data.get("defendant", {}).get("inn", ""),
-            "defendant_address": request.data.get("defendant", {}).get("address", ""),
-            "circumstances": request.data.get("circumstances", ""),
-            "legal_basis": request.data.get("legal_basis", ""),
-            "claims": request.data.get("claims", []),
-            "authority_name": request.data.get("authority_name", ""),
-            "applicant_name": request.data.get("applicant", {}).get("name", ""),
-            "applicant_inn": request.data.get("applicant", {}).get("inn", ""),
-            "applicant_address": request.data.get("applicant", {}).get("address", ""),
-            "interested_party": request.data.get("interested_party", {}).get("name", ""),
-            "appealed_action": request.data.get("appealed_action", ""),
-            "grounds": request.data.get("grounds", ""),
-            "demander_name": request.data.get("demander", {}).get("name", ""),
-            "demander_inn": request.data.get("demander", {}).get("inn", ""),
-            "demander_address": request.data.get("demander", {}).get("address", ""),
-            "demander_from_name": request.data.get("demander_from", {}).get("name", ""),
-            "demander_from_inn": request.data.get("demander_from", {}).get("inn", ""),
-            "demander_from_address": request.data.get("demander_from", {}).get("address", ""),
-            "demand_basis": request.data.get("demand_basis", ""),
-            "demand_deadline": request.data.get("demand_deadline", "10 календарных дней"),
-        }
+        # Подготовка данных для AI - теперь поддерживаем все поля из запроса
+        data = request.data.copy()
         
+        # Добавляем маппинг для обратной совместимости и удобства шаблонов
+        # Если вложенные объекты есть, раскрываем их в плоскую структуру для плейсхолдеров
+        if "plaintiff" in data and isinstance(data["plaintiff"], dict):
+            p = data["plaintiff"]
+            data["plaintiff_name"] = p.get("name", "")
+            data["plaintiff_inn"] = p.get("inn", "")
+            data["plaintiff_address"] = p.get("address", "")
+            
+        if "defendant" in data and isinstance(data["defendant"], dict):
+            d = data["defendant"]
+            data["defendant_name"] = d.get("name", "")
+            data["defendant_inn"] = d.get("inn", "")
+            data["defendant_address"] = d.get("address", "")
+
+        if "applicant" in data and isinstance(data["applicant"], dict):
+            a = data["applicant"]
+            data["applicant_name"] = a.get("name", "")
+            data["applicant_inn"] = a.get("inn", "")
+            data["applicant_address"] = a.get("address", "")
+            
+        if "demander" in data and isinstance(data["demander"], dict):
+            dm = data["demander"]
+            data["demander_name"] = dm.get("name", "")
+            data["demander_inn"] = dm.get("inn", "")
+            data["demander_address"] = dm.get("address", "")
+
+        if "demander_from" in data and isinstance(data["demander_from"], dict):
+            df = data["demander_from"]
+            data["demander_from_name"] = df.get("name", "")
+            data["demander_from_inn"] = df.get("inn", "")
+            data["demander_from_address"] = df.get("address", "")
+
         # Генерация через AI
         # Извлекаем строковое значение из Enum или оставляем как есть
         doc_type_str = request.document_type.value if hasattr(request.document_type, 'value') else str(request.document_type)
@@ -309,14 +318,21 @@ async def download_document_docx(
     doc_type = document.document_type.value if hasattr(document.document_type, 'value') else str(document.document_type)
 
     try:
-        if 'claim' in doc_type:
+        if doc_type == 'claim':
             docx_bytes = docx_generator.generate_claim(input_data)
-        elif 'complaint' in doc_type:
+        elif doc_type == 'complaint':
             docx_bytes = docx_generator.generate_complaint(input_data)
-        elif 'demand' in doc_type:
+        elif doc_type == 'demand':
             docx_bytes = docx_generator.generate_demand(input_data)
         else:
-            docx_bytes = docx_generator.generate_claim(input_data)
+            # Для новых типов используем генерацию из текста (AI уже составил структуру)
+            title_map = {
+                'contract_sale': 'Договор купли-продажи',
+                'contract_employment': 'Трудовой договор',
+                'power_of_attorney': 'Доверенность'
+            }
+            title = title_map.get(doc_type, 'Юридический документ')
+            docx_bytes = docx_generator.generate_from_plain_text(title, document.generated_content)
     except Exception as e:
         logger.error(f"Docx generation error: {str(e)}")
         raise HTTPException(
@@ -387,43 +403,58 @@ async def ai_suggest(
             if not request.circumstances or len(request.circumstances.strip()) < 20:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Сначала опишите обстоятельства дела (минимум 20 символов), чтобы AI мог подобрать нормы"
+                    detail="Сначала опишите обстоятельства или условия (минимум 20 символов), чтобы AI мог подобрать нормы"
                 )
 
-            system_prompt = f"""Ты — AI-помощник юриста. На основе описания ситуации подбираешь правильные нормы законодательства РФ.
+            # Контекстное определение системы права
+            is_contract = 'contract' in str(request.context).lower() or 'attorney' in str(request.context).lower()
+            
+            if is_contract:
+                purpose = "оклад и условия оплаты" if "employment" in str(request.context).lower() else "цену и порядок расчетов"
+                system_prompt = f"""Ты — AI-помощник юриста. Твоя задача — сформулировать ПУНКТЫ ДОГОВОРА про {purpose}.
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать термины: 'Иск', 'Суд', 'Взыскать', 'Истец', 'Ответчик'.
+
+ПРАВИЛА:
+1. Используй ТОЛЬКО реальные нормы ТК РФ (для трудовых) или ГК РФ (для купли-продажи).
+2. Формулируй как готовые пункты договора: "Оклад устанавливается в размере...", "Оплата производится в течение...".
+3. Верни ТОЛЬКО текст условий."""
+            else:
+                system_prompt = f"""Ты — AI-помощник юриста. На основе описания ситуации подбираешь правильные нормы законодательства РФ для ПРОЦЕССУАЛЬНОГО ДОКУМЕНТА (иск, жалоба).
 
 КРИТИЧЕСКИЕ ПРАВИЛА:
 1. Используй ТОЛЬКО реальные, действующие нормы (ГК РФ, ГПК РФ, АПК РФ, КАС РФ, ЗоПП и др.)
-2. НЕ выдумывай статьи, законы, номера
-3. Если не уверен в конкретной статье — используй общие формулировки без номеров статей
-4. Для искового заявления (claim) — чаще всего: ст. 309, 310, 309-310 ГК РФ (обязательства), ст. 15 (убытки), ст. 395 (неустойка)
-5. Для жалобы (complaint) — ст. 218-222 КАС РФ (оспаривание решений), ст. 254 ГПК РФ
-6. Для претензии (demand) — ст. 309, 310 ГК РФ, ст. 18-29 ЗоПП
-7. Формулируй кратко, только ссылки на статьи с пояснением
-8. Верни ТОЛЬКО текст правового обоснования, без заголовков и комментариев"""
+2. Для искового заявления (claim) — чаще всего: ст. 309, 310 ГК РФ (обязательства), ст. 15 (убытки), ст. 395 (неустойка)
+3. Для жалобы (complaint) — ст. 218-222 КАС РФ (оспаривание решений), ст. 254 ГПК РФ
+4. Для претензии (demand) — ст. 309, 310 ГК РФ, ст. 18-29 ЗоПП
+5. Верни ТОЛЬКО текст правового обоснования, без заголовков и комментариев"""
 
-            user_prompt = f"Документ: {request.context}\n\nОбстоятельства дела:\n{request.circumstances}\n\nПодбери правовое обоснование (ссылки на статьи с пояснением):"
-
-        # --- Режим: ГЕНЕРАЦИЯ ТРЕБОВАНИЙ ---
+        # --- Режим: ГЕНЕРАЦИЯ ТРЕБОВАНИЙ / УСЛОВИЙ ---
         elif request.mode == 'generate' and request.field == 'claims':
             if not request.circumstances or len(request.circumstances.strip()) < 20:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Сначала опишите обстоятельства дела, чтобы AI мог сформулировать требования"
+                    detail="Сначала опишите обстоятельства или суть документа, чтобы AI мог сформулировать пункты"
                 )
 
-            system_prompt = f"""Ты — AI-помощник юриста. Формулируешь чёткие требования для искового заявления/претензии.
+            is_contract = 'contract' in str(request.context).lower() or 'attorney' in str(request.context).lower()
+
+            if is_contract:
+                system_prompt = f"""Ты — AI-помощник юриста. Формулируешь чёткие УСЛОВИЯ И ОБЯЗАТЕЛЬСТВА для ДОГОВОРА.
+КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать о судах и взысканиях.
+
+ПРАВИЛА:
+1. Пиши условия в утвердительной форме: "Работодатель обязуется...", "Покупатель обязуется оплатить..."
+2. Каждое условие с новой строки.
+3. Верни ТОЛЬКО текст условий, без номеров и комментариев."""
+            else:
+                system_prompt = f"""Ты — AI-помощник юриста. Формулируешь чёткие ТРЕБОВАНИЯ для искового заявления/претензии.
 
 КРИТИЧЕСКИЕ ПРАВИЛА:
 1. Требования должны быть КОНКРЕТНЫМИ и ИСПОЛНИМЫМИ
 2. Каждое требование с новой строки
 3. Для взыскания долга: "Взыскать с Ответчика задолженность в размере X руб."
-4. Для неустойки: "Взыскать неустойку/проценты за пользование чужими деньгами"
-5. Для судебных расходов: "Взыскать расходы по уплате госпошлины"
-6. НЕ выдумывай суммы — если нет конкретной суммы, используй общие формулировки
-7. Верни ТОЛЬКО текст требований, каждое с новой строки, без номеров и комментариев"""
-
-            user_prompt = f"Документ: {request.context}\n\nОбстоятельства дела:\n{request.circumstances}\n\nСформулируй требования (каждое с новой строки):"
+4. НЕ выдумывай суммы — используй общие формулировки если нет цифр
+5. Верни ТОЛЬКО текст требований, каждое с новой строки, без номеров и комментариев"""
 
         # --- Режим: ГЕНЕРАЦИЯ ОБСТОЯТЕЛЬСТВ ---
         elif request.mode == 'generate' and request.field == 'circumstances':

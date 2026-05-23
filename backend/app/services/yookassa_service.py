@@ -35,6 +35,17 @@ class YooKassaService:
             logger.error(f"Error creating YooKassa payment: {e}")
             raise e
 
+    async def get_payment(self, payment_id: str):
+        """
+        Получает информацию о платеже из ЮKassa.
+        """
+        try:
+            res = Payment.find_one(payment_id)
+            return res
+        except Exception as e:
+            logger.error(f"Error getting YooKassa payment {payment_id}: {e}")
+            raise e
+
     def validate_webhook(self, body: dict):
         """
         Валидация вебхука (в простейшем случае проверка типа события).

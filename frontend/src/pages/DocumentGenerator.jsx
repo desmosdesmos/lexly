@@ -30,6 +30,16 @@ export function DocumentGenerator() {
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
 
+  const labels = {
+    claim: { p: 'Истец', d: 'Ответчик', c: 'Обстоятельства дела', l: 'Правовое обоснование', t: 'Требования' },
+    demand: { p: 'Заявитель', d: 'Адресат', c: 'Основания претензии', l: 'Ссылки на договор/закон', t: 'Требования' },
+    contract_sale: { p: 'Продавец', d: 'Покупатель', c: 'Описание товара/имущества', l: 'Цена и порядок оплаты', t: 'Особые условия (доставка и др.)' },
+    contract_employment: { p: 'Работодатель', d: 'Работник', c: 'Место работы и условия', l: 'Оклад и надбавки', t: 'Специфические условия', extra: 'Должность' },
+    power_of_attorney: { p: 'Доверитель', d: 'Поверенный', c: 'Полномочия (что доверяете)', l: 'Срок и место действия', t: 'Дополнительная информация', extra: 'Место выдачи' },
+  }
+
+  const currentLabels = labels[documentType] || labels.claim
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -73,8 +83,7 @@ export function DocumentGenerator() {
           grounds: formData.grounds || undefined,
           claims: formData.claims.split('\n').filter((c) => c.trim()),
         }
-      } else {
-        // demand
+      } else if (documentType === 'demand') {
         data = {
           demander: {
             name: formData.defendant_name,
@@ -88,6 +97,42 @@ export function DocumentGenerator() {
           },
           demand_basis: formData.circumstances || formData.demand_basis || '',
           claims: formData.claims.split('\n').filter((c) => c.trim()),
+        }
+      } else if (documentType === 'contract_sale') {
+        data = {
+          seller_name: formData.plaintiff_name,
+          seller_inn: formData.plaintiff_inn,
+          seller_address: formData.plaintiff_address,
+          buyer_name: formData.defendant_name,
+          buyer_inn: formData.defendant_inn,
+          buyer_address: formData.defendant_address,
+          item_description: formData.circumstances,
+          price_and_payment: formData.legal_basis,
+          circumstances: formData.claims,
+        }
+      } else if (documentType === 'contract_employment') {
+        data = {
+          employer_name: formData.plaintiff_name,
+          employer_inn: formData.plaintiff_inn,
+          employer_address: formData.plaintiff_address,
+          employee_name: formData.defendant_name,
+          employee_inn: formData.defendant_inn,
+          employee_address: formData.defendant_address,
+          job_title: formData.court_name,
+          salary_info: formData.legal_basis,
+          circumstances: formData.claims,
+        }
+      } else if (documentType === 'power_of_attorney') {
+        data = {
+          principal_name: formData.plaintiff_name,
+          principal_details: formData.plaintiff_inn,
+          principal_address: formData.plaintiff_address,
+          agent_name: formData.defendant_name,
+          agent_details: formData.defendant_inn,
+          agent_address: formData.defendant_address,
+          powers: formData.circumstances,
+          expiry: formData.court_name,
+          circumstances: formData.claims,
         }
       }
 
@@ -230,19 +275,24 @@ export function DocumentGenerator() {
                     <option value="claim">Исковое заявление</option>
                     <option value="complaint">Жалоба</option>
                     <option value="demand">Претензия</option>
+                    <option value="contract_sale">Договор купли-продажи</option>
+                    <option value="contract_employment">Трудовой договор</option>
+                    <option value="power_of_attorney">Доверенность</option>
                   </Select>
                 </div>
 
-                {/* Claim fields */}
-                {(documentType === 'claim' || documentType === 'demand') && (
+                {/* Parties fields (Shared by many) */}
+                {['claim', 'demand', 'contract_sale', 'contract_employment', 'power_of_attorney'].includes(documentType) && (
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Стороны</h3>
-                    {documentType === 'claim' && (
+                    {(documentType === 'claim' || currentLabels.extra) && (
                       <div className="mb-4">
-                        <label className="block text-sm font-medium mb-2">Наименование суда *</label>
+                        <label className="block text-sm font-medium mb-2">
+                          {documentType === 'claim' ? 'Наименование суда *' : currentLabels.extra + ' *'}
+                        </label>
                         <Input
                           name="court_name"
-                          placeholder="Арбитражный суд г. Москвы"
+                          placeholder={documentType === 'claim' ? "Арбитражный суд г. Москвы" : ""}
                           value={formData.court_name || ''}
                           onChange={handleChange}
                           required
@@ -251,33 +301,37 @@ export function DocumentGenerator() {
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
-                        <h4 className="font-medium">{documentType === 'demand' ? 'Заявитель' : 'Истец'}</h4>
+                        <h4 className="font-medium">{currentLabels.p}</h4>
                         <div>
-                          <label className="block text-sm font-medium mb-2">Наименование *</label>
-                          <Input name="plaintiff_name" placeholder='ООО "Ромашка"' value={formData.plaintiff_name || ''} onChange={handleChange} required />
+                          <label className="block text-sm font-medium mb-2">Наименование/ФИО *</label>
+                          <Input name="plaintiff_name" placeholder="" value={formData.plaintiff_name || ''} onChange={handleChange} required />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-2">ИНН</label>
-                          <Input name="plaintiff_inn" placeholder="7701234567" value={formData.plaintiff_inn || ''} onChange={handleChange} />
+                          <label className="block text-sm font-medium mb-2">
+                            {documentType === 'power_of_attorney' ? 'Паспортные данные' : 'ИНН'}
+                          </label>
+                          <Input name="plaintiff_inn" placeholder="" value={formData.plaintiff_inn || ''} onChange={handleChange} />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-2">Адрес</label>
-                          <Input name="plaintiff_address" placeholder="г. Москва, ул. Примерная, д. 1" value={formData.plaintiff_address || ''} onChange={handleChange} />
+                          <Input name="plaintiff_address" placeholder="" value={formData.plaintiff_address || ''} onChange={handleChange} />
                         </div>
                       </div>
                       <div className="space-y-4">
-                        <h4 className="font-medium">{documentType === 'demand' ? 'Адресат' : 'Ответчик'}</h4>
+                        <h4 className="font-medium">{currentLabels.d}</h4>
                         <div>
-                          <label className="block text-sm font-medium mb-2">Наименование *</label>
-                          <Input name="defendant_name" placeholder='ООО "Лютик"' value={formData.defendant_name || ''} onChange={handleChange} required />
+                          <label className="block text-sm font-medium mb-2">Наименование/ФИО *</label>
+                          <Input name="defendant_name" placeholder="" value={formData.defendant_name || ''} onChange={handleChange} required />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-2">ИНН</label>
-                          <Input name="defendant_inn" placeholder="7709876543" value={formData.defendant_inn || ''} onChange={handleChange} />
+                          <label className="block text-sm font-medium mb-2">
+                            {documentType === 'power_of_attorney' ? 'Паспортные данные' : 'ИНН'}
+                          </label>
+                          <Input name="defendant_inn" placeholder="" value={formData.defendant_inn || ''} onChange={handleChange} />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-2">Адрес</label>
-                          <Input name="defendant_address" placeholder="г. Москва, ул. Другая, д. 2" value={formData.defendant_address || ''} onChange={handleChange} />
+                          <Input name="defendant_address" placeholder="" value={formData.defendant_address || ''} onChange={handleChange} />
                         </div>
                       </div>
                     </div>
@@ -313,13 +367,15 @@ export function DocumentGenerator() {
 
                 {/* Circumstances / grounds */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">{documentType === 'complaint' ? 'Основания жалобы' : 'Обстоятельства дела'}</h3>
+                  <h3 className="text-lg font-semibold mb-4">
+                    {documentType === 'complaint' ? 'Основания жалобы' : currentLabels.c}
+                  </h3>
                   <div className="mb-4">
                     <AIFieldHelper
                       value={formData[documentType === 'complaint' ? 'appealed_action' : 'circumstances'] || ''}
                       onChange={(val) => setFormData(prev => ({...prev, [documentType === 'complaint' ? 'appealed_action' : 'circumstances']: val}))}
-                      placeholder={documentType === 'complaint' ? 'Опишите, какое решение/действие обжалуется' : 'Опишите ситуацию: когда был заключён договор, какие обязательства нарушены, и т.д.'}
-                      label={documentType === 'complaint' ? 'Обжалуемое действие *' : 'Обстоятельства дела *'}
+                      placeholder={documentType === 'complaint' ? 'Опишите, какое решение/действие обжалуется' : `Опишите подробности для: ${currentLabels.c}`}
+                      label={(documentType === 'complaint' ? 'Обжалуемое действие' : currentLabels.c) + ' *'}
                       type="textarea"
                       rows={4}
                       context={documentType}
@@ -330,37 +386,27 @@ export function DocumentGenerator() {
                     <AIFieldHelper
                       value={formData[documentType === 'complaint' ? 'grounds' : 'legal_basis'] || ''}
                       onChange={(val) => setFormData(prev => ({...prev, [documentType === 'complaint' ? 'grounds' : 'legal_basis']: val}))}
-                      placeholder="AI подберёт нормы на основе обстоятельств дела"
-                      label={documentType === 'complaint' ? 'Основания жалобы' : 'Правовое обоснование'}
+                      placeholder="AI подберёт нормы на основе предоставленных данных"
+                      label={documentType === 'complaint' ? 'Основания жалобы' : currentLabels.l}
                       type="textarea"
                       rows={3}
                       context={documentType}
                       field={documentType === 'complaint' ? 'grounds' : 'legal_basis'}
                       circumstances={formData.circumstances || formData.appealed_action || ''}
                     />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {formData.circumstances || formData.appealed_action
-                        ? '✨ Описали обстоятельства — нажмите AI чтобы автоматически подобрать нормы'
-                        : 'Опишите обстоятельства дела выше, и AI подберёт правильные статьи законов'}
-                    </p>
                   </div>
                   <div>
                     <AIFieldHelper
                       value={formData.claims || ''}
                       onChange={(val) => setFormData(prev => ({...prev, claims: val}))}
-                      placeholder="AI сформулирует требования на основе обстоятельств"
-                      label="Требования *"
+                      placeholder="AI сформулирует детали на основе описания выше"
+                      label={currentLabels.t + ' *'}
                       type="textarea"
                       rows={3}
                       context={documentType}
                       field="claims"
                       circumstances={formData.circumstances || formData.appealed_action || ''}
                     />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {formData.circumstances || formData.appealed_action
-                        ? '✨ Описали обстоятельства — нажмите AI чтобы сформулировать требования'
-                        : 'Опишите обстоятельства дела выше, и AI сформулирует правильные требования'}
-                    </p>
                   </div>
                 </div>
 

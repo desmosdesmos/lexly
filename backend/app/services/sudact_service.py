@@ -12,13 +12,16 @@ class SudactParser:
     """Парсер сайта sudact.ru для получения судебной практики."""
 
     BASE_URL = "https://sudact.ru"
+    # Поиск по всем судам (универсальный вход)
     SEARCH_URL = f"{BASE_URL}/regular/doc/"
+    ARBITR_URL = f"{BASE_URL}/arbitr/doc/"
 
     def __init__(self):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Language": "ru-RU,ru;q=0.9",
+            "Referer": "https://sudact.ru/",
         }
 
     async def search_cases(
@@ -29,89 +32,69 @@ class SudactParser:
         limit: int = 15,
     ) -> List[Dict[str, Any]]:
         """
-        Глубокий поиск судебных дел с расширенными параметрами.
+        Глубокий поиск судебных дел с расширенными параметрами и валидацией.
         """
-        # Очищаем запрос для Sudact
-        clean_query = quote(query)
         params = {
             "q": query,
-            "sort": "date:desc", # Всегда самые свежие
+            "sort": "date:desc", # Всегда свежие наверх
         }
 
-        if court_type:
-            params["court_type"] = court_type
         if case_type:
             params["case_type"] = case_type
 
-        try:
-            async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
-                # Делаем несколько попыток поиска в разных разделах если нужно
-                response = await client.get(
-                    self.SEARCH_URL,
-                    params=params,
-                    headers=self.headers,
-                )
-                response.raise_for_status()
-                
-                results = self._parse_search_results(response.text)
-                
-                # Если мало результатов, пробуем арбитраж
-                if len(results) < 5 and not court_type:
-                    params["court_type"] = "arbitrazh"
-                    arbitr_url = "https://sudact.ru/arbitr/doc/"
-                    resp_arb = await client.get(arbitr_url, params=params, headers=self.headers)
-                    if resp_arb.status_code == 200:
-                        results.extend(self._parse_search_results(resp_arb.text))
-                
-                return results[:limit]
-                
-        except httpx.HTTPError as e:
-            logger.error(f"Error searching cases: {str(e)}")
-            return []
+        all_results = []
+        
+        # Определяем по каким разделам искать
+        targets = []
+        if court_type == "arbitrazh":
+            targets = [self.ARBITR_URL]
+        elif court_type == "general":
+            targets = [self.SEARCH_URL]
+        else:
+            # Если тип не указан, ищем и там и там
+            targets = [self.ARBITR_URL, self.SEARCH_URL]
+
+        async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
+            for url in targets:
+                try:
+                    response = await client.get(url, params=params, headers=self.headers)
+                    if response.status_code == 200:
+                        results = self._parse_search_results(response.text)
+                        all_results.extend(results)
+                    
+                    if len(all_results) >= limit:
+                        break
+                except Exception as e:
+                    logger.error(f"Error searching {url}: {e}")
+
+        # Финальная очистка и лимит
+        seen_urls = set()
+        unique_results = []
+        for r in all_results:
+            if r['url'] not in seen_urls:
+                unique_results.append(r)
+                seen_urls.add(r['url'])
+        
+        return unique_results[:limit]
 
     def _parse_search_results(self, html: str) -> List[Dict[str, Any]]:
-        """Парсинг результатов поиска."""
+        """Улучшенный парсинг результатов поиска."""
         try:
             soup = BeautifulSoup(html, "html.parser")
             results = []
 
-            # Try multiple selectors
-            selectors = [
-                ("div", {"class": "doc-block"}),
-                ("div", {"class": "doc"}),
-                ("div", {"class": "search-result"}),
-                ("li", {"class": "search-result"}),
-                ("div", {"class": "item"}),
-            ]
+            # Точные селекторы для актуальной верстки
+            items = soup.select(".doc-block, .search-result, .item, .doc")
+            
+            if not items:
+                # Если блоки не найдены, ищем через заголовки
+                items = soup.select("h4, h3")
 
-            doc_blocks = []
-            for tag, attrs in selectors:
-                doc_blocks = soup.find_all(tag, attrs)
-                if doc_blocks:
-                    break
-
-            # Fallback: find all links that look like document links
-            if not doc_blocks:
-                links = soup.find_all("a", href=True)
-                for link in links:
-                    href = link.get("href", "")
-                    text = link.text.strip()
-                    if ("/regular/doc/" in href or "/arbitr/doc/" in href) and len(text) > 10:
-                        results.append({
-                            "title": text,
-                            "url": href if href.startswith("http") else urljoin(self.BASE_URL, href),
-                            "meta": "",
-                            "snippet": "",
-                        })
-                        if len(results) >= 10:
-                            break
-                return results
-
-            for block in doc_blocks[:10]:
-                case_data = self._extract_case_data(block)
-                if case_data and case_data.get('title'):
+            for item in items:
+                case_data = self._extract_case_data(item)
+                if case_data and case_data.get('url'):
                     results.append(case_data)
-
+            
             return results
 
         except Exception as e:
@@ -119,35 +102,51 @@ class SudactParser:
             return []
 
     def _extract_case_data(self, block: BeautifulSoup) -> Optional[Dict[str, Any]]:
-        """Извлечение данных дела из блока."""
+        """Глубокое извлечение данных дела."""
         try:
-            # Заголовок
-            title_tag = block.find("a", class_="doc-title")
-            if not title_tag:
-                title_tag = block.find("h3")
+            # 1. Заголовок и URL
+            title_tag = block.select_one(".doc-title, h4 a, h3 a, a[href*='/doc/']")
+            if not title_tag and block.name == "a":
+                title_tag = block
             
-            title = title_tag.text.strip() if title_tag else "Без названия"
-            url = title_tag.get("href", "") if title_tag else ""
+            if not title_tag:
+                return None
+                
+            title = title_tag.get_text().strip()
+            url = title_tag.get("href", "")
+            
+            if not url or len(title) < 10:
+                return None
+
             if url and not url.startswith("http"):
                 url = urljoin(self.BASE_URL, url)
             
-            # Мета данные
-            meta_tag = block.find("div", class_="doc-meta")
-            meta_text = meta_tag.text.strip() if meta_tag else ""
+            # 2. Мета-информация (Суд, Дата, Судья)
+            meta_text = ""
+            meta_tag = block.select_one(".doc-meta, .meta, .info")
+            if meta_tag:
+                meta_text = meta_tag.get_text().strip()
             
-            # Краткое содержание
-            snippet_tag = block.find("div", class_="doc-snippet")
-            snippet = snippet_tag.text.strip() if snippet_tag else ""
+            # 3. Сниппет (кусок текста)
+            snippet = ""
+            snippet_tag = block.select_one(".doc-snippet, .snippet, .text-preview")
+            if snippet_tag:
+                snippet = snippet_tag.get_text().strip()
             
+            # 4. Поиск даты в мета-информации для сортировки/валидации
+            import re
+            date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', meta_text + title + snippet)
+            date_str = date_match.group(1) if date_match else ""
+
             return {
                 "title": title,
                 "url": url,
                 "meta": meta_text,
-                "snippet": snippet,
+                "snippet": snippet[:400] + "..." if len(snippet) > 400 else snippet,
+                "date": date_str
             }
             
         except Exception as e:
-            logger.error(f"Error extracting case data: {str(e)}")
             return None
 
     async def get_case_full(self, url: str) -> Optional[Dict[str, Any]]:

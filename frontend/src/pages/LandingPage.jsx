@@ -1,210 +1,179 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Sparkles, ArrowRight, Shield, Check, FileText, TrendingUp, MessageSquare, Scale, Sun, Moon } from 'lucide-react'
+import { 
+  Shield, 
+  FileText, 
+  MessageSquare, 
+  Gavel, 
+  CheckCircle, 
+  ArrowRight, 
+  Globe, 
+  ChevronRight,
+  TrendingUp,
+  Sparkles,
+  Zap,
+  HardDrive
+} from 'lucide-react'
 import { Logo } from '../components/ui/Logo'
-import { useThemeMode } from '../context/ThemeModeContext'
+import { Button } from '../components/ui/Button'
+import { useAuth } from '../context/AuthContext'
 
 export function LandingPage() {
-  const { mode, toggleMode } = useThemeMode()
-  const isLight = mode === 'light'
-  
-  const features = [
-    { icon: FileText, title: 'Генерация документов', desc: 'Иски, жалобы, претензии за секунды' },
-    { icon: Shield, title: 'Проверка договоров', desc: 'AI найдёт скрытые риски' },
-    { icon: MessageSquare, title: 'AI-консультант', desc: 'Ответы на юридические вопросы' },
-    { icon: Scale, title: 'Судебная практика', desc: 'Анализ решений судов' },
-    { icon: TrendingUp, title: 'Мониторинг законов', desc: 'Отслеживание изменений' },
-    { icon: Sparkles, title: 'Умные подсказки', desc: 'AI поможет с формулировками' },
-  ]
+  const { user } = useAuth()
+  const [scrolled, setScrolled] = useState(false)
 
-  const plans = [
-    { name: 'Бесплатный', price: '0 ₽', features: ['5 документов/мес', '3 проверки договора', 'Базовая поддержка'], current: true },
-    { name: 'Базовый', price: '990 ₽/мес', features: ['30 документов/мес', '20 проверок', 'Приоритетная поддержка'] },
-    { name: 'Pro', price: '2 990 ₽/мес', features: ['200 документов/мес', '100 проверок', 'API доступ', 'Судебная практика', 'Мониторинг законов'], popular: true },
-    { name: 'Бизнес', price: '9 990 ₽/мес', features: ['Безлимит документов', 'Безлимит проверок', 'Командный доступ', 'API доступ', 'Персональный менеджер'] },
-  ]
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
-    <div className="min-h-screen" style={{ background: isLight ? 'var(--bg-primary)' : undefined }}>
-      {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl border-b" style={{ background: 'var(--header-bg)', borderColor: 'var(--border-subtle)' }}>
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          <Link to="/" className="flex items-center flex-shrink-0">
-            <Logo size="md" className="sm:h-10 h-8" />
-          </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={toggleMode}
-              className="p-2 sm:p-2.5 rounded-xl transition-colors flex-shrink-0"
-              style={{ background: isLight ? 'var(--hover-bg)' : 'transparent' }}
-              title={isLight ? 'Тёмная тема' : 'Светлая тема'}
-            >
-              {isLight ? <Moon className="w-4 h-4 sm:w-5 sm:h-5" style={{ color: 'var(--text-secondary)' }} /> : <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-white/60" />}
-            </button>
-            <Link to="/login" className="px-2 sm:px-4 py-2 text-xs sm:text-sm transition-colors flex-shrink-0" style={{ color: isLight ? 'var(--text-secondary)' : 'rgba(255,255,255,0.5)' }}>
-              Войти
-            </Link>
-            <Link to="/register" className="px-3 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm text-white font-medium rounded-xl shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 transition-all bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] flex-shrink-0">
-              Регистрация
-            </Link>
+    <div className="min-h-screen bg-[#000000] selection:bg-[#0A84FF]/30 overflow-x-hidden">
+      {/* Фоновые градиенты */}
+      <div className="fixed inset-0 pointer-events-none opacity-20">
+         <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-[#0A84FF]/10 blur-[120px] rounded-full" />
+         <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-500/10 blur-[120px] rounded-full" />
+      </div>
+
+      {/* Навигация */}
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-black/80 backdrop-blur-xl border-b border-white/5 py-4' : 'bg-transparent py-6'}`}>
+        <div className="max-w-7xl mx-auto px-6 flex items-center justify-between">
+          <Logo size="md" />
+          
+          <div className="hidden md:flex items-center gap-10">
+            <a href="#features" className="text-sm font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors">Возможности</a>
+            <a href="#tariffs" className="text-sm font-bold uppercase tracking-widest text-white/40 hover:text-white transition-colors">Тарифы</a>
+            {user ? (
+              <Link to="/dashboard">
+                <Button className="h-12 px-8 rounded-xl font-black uppercase tracking-widest text-[10px]">Личный кабинет</Button>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-4">
+                <Link to="/login" className="text-sm font-bold uppercase tracking-widest text-white/40 hover:text-white px-4 py-2">Войти</Link>
+                <Link to="/register">
+                  <Button className="h-12 px-8 rounded-xl font-black uppercase tracking-widest text-[10px]">Регистрация</Button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
-      </header>
+      </nav>
 
-      {/* Hero */}
-      <section className="max-w-4xl mx-auto px-4 pt-12 sm:pt-20 pb-12 sm:pb-16 text-center overflow-hidden">
-        <div className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-sm mb-6 ${isLight ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-[#0A84FF]/8 border border-[#0A84FF]/15 text-[#0A84FF]'}`}>
-          <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
-          AI-юрист нового поколения
-        </div>
-        <h1 className="text-3xl sm:text-4xl lg:text-6xl font-bold mb-4 tracking-tight leading-tight" style={{ color: isLight ? 'var(--text-primary)' : undefined }}>
-          Юридические документы
-          <br />
-          <span className="bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] bg-clip-text text-transparent">с помощью AI</span>
-        </h1>
-        <p className="text-base sm:text-lg max-w-2xl mx-auto mb-8 px-4" style={{ color: 'var(--text-tertiary)' }}>
-          Генерация исков, проверка договоров, анализ судебной практики — всё это с помощью искусственного интеллекта
-        </p>
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link to="/register" className="group px-7 py-3.5 bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] text-white font-medium rounded-xl hover:shadow-lg hover:shadow-blue-500/25 hover:-translate-y-0.5 transition-all inline-flex items-center gap-2">
-            Начать бесплатно
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </Link>
-          <Link to="/login" className={`px-7 py-3.5 rounded-xl transition-all ${isLight ? 'bg-gray-100 hover:bg-gray-200 text-gray-800 border border-gray-200' : 'bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.06] text-white/80'}`}>
-            Уже есть аккаунт
-          </Link>
-        </div>
-      </section>
+      {/* Главный блок */}
+      <section className="relative pt-48 pb-32 px-6">
+        <div className="max-w-5xl mx-auto text-center space-y-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+             <Sparkles className="w-4 h-4 text-[#0A84FF]" />
+             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Новое поколение юридической помощи</span>
+          </div>
+          
+          <h1 className="text-4xl sm:text-8xl font-black text-white tracking-tighter uppercase italic leading-none">
+             Ваш персональный <br />
+             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D2FF] via-[#0A84FF] to-[#7000FF]">
+                AI Юрист.
+             </span>
+          </h1>
+          
+          <p className="text-white/40 text-xl font-medium max-w-2xl mx-auto leading-relaxed">
+             Автоматизируйте подготовку исков, проводите мгновенный аудит договоров и получайте консультации на базе актуальных законов РФ 2026 года.
+          </p>
 
-      {/* Features */}
-      <section className="max-w-5xl mx-auto px-4 pb-20">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl lg:text-3xl font-semibold mb-3" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>Возможности</h2>
-          <p style={{ color: 'var(--text-tertiary)' }}>Всё что нужно для юридической работы</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((f, i) => (
-            <div key={i} className={`p-6 rounded-[22px] border transition-all hover:-translate-y-1 ${isLight ? 'bg-white border-gray-100 shadow-sm hover:shadow-md' : 'bg-[rgba(28,28,30,0.4)] border-white/[0.04] hover:bg-[rgba(28,28,30,0.6)] hover:border-white/[0.06]'}`}>
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-colors ${isLight ? 'bg-blue-50' : 'bg-white/[0.04]'}`}>
-                <f.icon className={`w-6 h-6 transition-colors ${isLight ? 'text-[#0A84FF]' : 'text-white/40 group-hover:text-[#0A84FF]'}`} />
-              </div>
-              <h3 className="font-medium mb-1" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>{f.title}</h3>
-              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section className="max-w-6xl mx-auto px-4 pb-20">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl lg:text-3xl font-semibold mb-3" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>Тарифы</h2>
-          <p style={{ color: 'var(--text-tertiary)' }}>Начните бесплатно, обновите когда нужно</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {plans.map((plan, i) => (
-            <div
-              key={i}
-              className={`p-6 rounded-[22px] border transition-all hover:-translate-y-1 ${plan.popular
-                ? isLight ? 'bg-blue-50 border-blue-200 shadow-md' : 'bg-[rgba(10,132,255,0.08)] border-[#0A84FF]/20 shadow-lg shadow-blue-500/10'
-                : isLight ? 'bg-white border-gray-100 shadow-sm' : 'bg-[rgba(28,28,30,0.3)] border-white/[0.04] hover:border-white/[0.06]'
-              }`}
-            >
-              {plan.popular && (
-                <span className={`text-xs px-2.5 py-1 rounded-full font-medium mb-4 inline-block ${isLight ? 'bg-blue-100 text-blue-700' : 'bg-[#0A84FF]/15 text-[#0A84FF]'}`}>
-                  Популярный
-                </span>
-              )}
-              <h3 className="font-medium mb-1" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>{plan.name}</h3>
-              <div className="text-2xl font-semibold mb-4" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.9)' }}>{plan.price}</div>
-              <ul className="space-y-2.5 mb-6">
-                {plan.features.map((f, j) => (
-                  <li key={j} className="text-xs flex items-start gap-2" style={{ color: 'var(--text-tertiary)' }}>
-                    <Check className={`w-3.5 h-3.5 flex-shrink-0 mt-0.5 ${isLight ? 'text-[#0A84FF]' : 'text-[#0A84FF]/50'}`} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                to="/register"
-                className={`block text-center text-sm py-2.5 rounded-xl transition-all ${plan.popular
-                  ? 'bg-gradient-to-r from-[#0A84FF] to-[#5E5CE6] text-white shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30'
-                  : isLight ? 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-100' : 'bg-white/[0.04] text-white/50 hover:bg-white/[0.08] border border-white/[0.04]'
-                }`}
-              >
-                {plan.current ? 'Начать' : `Выбрать ${plan.name}`}
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="max-w-3xl mx-auto px-4 pb-20 text-center">
-        <div className={`p-6 sm:p-10 rounded-[22px] border ${isLight ? 'bg-white shadow-sm border-gray-100' : 'bg-[rgba(28,28,30,0.3)] border-white/[0.04]'}`}>
-          <h2 className="text-xl sm:text-2xl font-semibold mb-3" style={{ color: isLight ? 'var(--text-primary)' : 'rgba(255,255,255,0.8)' }}>Начните бесплатно</h2>
-          <p className="text-xs sm:text-sm mb-6" style={{ color: 'var(--text-tertiary)' }}>Без привязки карты. 2 документа бесплатно каждый месяц.</p>
-          <Link to="/register" className="group px-7 py-3.5 bg-white text-black font-medium rounded-xl hover:bg-white/90 transition-all inline-flex items-center gap-2">
-            Создать аккаунт
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t py-12" style={{ borderColor: 'var(--border-subtle)', background: isLight ? 'var(--bg-secondary)' : 'rgba(28,28,30,0.2)' }}>
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
-            <div className="space-y-4">
-              <Link to="/" className="flex items-center gap-2">
-                <Logo size="md" />
-              </Link>
-              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-tertiary)' }}>
-                Первый в России AI-юрист для автоматизации правовой работы. 
-                Мы объединяем передовые технологии ИИ с юридической экспертизой.
-              </p>
-            </div>
-            
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm" style={{ color: isLight ? 'var(--text-primary)' : 'white' }}>Правовая информация</h4>
-              <div className="space-y-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                <p>Пащенко Ян Викторович</p>
-                <p>ИНН: 644010686500</p>
-                <p>LegalID: LA0005406707</p>
-                <p>MerchantID: MA0006349722</p>
-                <p>Адрес: г. Саратов</p>
-                <p className="pt-1 text-[10px] opacity-70">Сервера и базы данных локализованы в РФ (ФЗ-152).</p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm" style={{ color: isLight ? 'var(--text-primary)' : 'white' }}>Поддержка</h4>
-              <div className="space-y-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                <p>Email: <a href="mailto:desmosymail@gmail.com" className="hover:text-[#0A84FF]">desmosymail@gmail.com</a></p>
-                <p>Часы работы: Пн-Пт, 10:00 – 19:00 (МСК)</p>
-                <div className="pt-2 flex gap-4">
-                  <Link to="/privacy" className="hover:text-[#0A84FF] transition-colors">Политика ПДн</Link>
-                  <Link to="/terms" className="hover:text-[#0A84FF] transition-colors">Оферта</Link>
-                </div>
-              </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-6">
+            <Link to={user ? "/dashboard" : "/register"}>
+              <Button size="lg" className="h-16 px-12 rounded-[22px] font-black uppercase tracking-widest text-xs gap-3 shadow-2xl shadow-blue-500/20 hover:scale-105 active:scale-95 transition-all">
+                 Начать бесплатно <ArrowRight className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div className="flex items-center gap-4 text-white/30 text-[10px] font-black uppercase tracking-widest">
+               <div className="flex -space-x-3">
+                  {[1,2,3].map(i => <div key={i} className="w-8 h-8 rounded-full border-2 border-black bg-white/10" />)}
+               </div>
+               <span>Более 5000 пользователей</span>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="pt-8 border-t border-white/[0.04] flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex flex-col gap-2">
-              <div className="text-[10px] uppercase tracking-wider font-medium" style={{ color: 'var(--text-tertiary)' }}>
-                © 2026 Laxly Law AI. Все права защищены.
+      {/* Сетка возможностей */}
+      <section id="features" className="py-32 px-6 relative">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-20 space-y-4">
+             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#0A84FF]">Возможности сервиса</p>
+             <h2 className="text-4xl sm:text-5xl font-black text-white uppercase italic tracking-tighter">Полный спектр услуг <br/>в одном окне</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { title: 'Конструктор исков', desc: 'Генерация готовых исковых заявлений, жалоб и претензий по вашим данным за 30 секунд.', icon: FileText, color: 'text-blue-400' },
+              { title: 'Анализ договоров', desc: 'Мгновенный поиск рисков и «подводных камней» в любых контрактах с рекомендациями по защите.', icon: Shield, color: 'text-amber-400' },
+              { title: 'AI Консультант', desc: 'Глубокие ответы на правовые вопросы со ссылками на статьи кодексов и актуальную практику.', icon: MessageSquare, color: 'text-purple-400' },
+              { title: 'База практики', desc: 'Поиск по сотням миллионов судебных решений для усиления вашей правовой позиции.', icon: Gavel, color: 'text-indigo-400' },
+              { title: 'Мониторинг', desc: 'Автоматическое отслеживание изменений в законодательстве, важных для вашего дела.', icon: TrendingUp, color: 'text-green-400' },
+              { title: 'Архив файлов', desc: 'Надежное облачное хранилище для всех ваших документов с доступом 24/7.', icon: HardDrive, color: 'text-pink-400' },
+            ].map((f, i) => (
+              <div key={i} className="p-10 rounded-[40px] bg-white/[0.02] border border-white/5 hover:border-[#0A84FF]/30 transition-all group">
+                 <div className={`w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center ${f.color} mb-8 group-hover:scale-110 transition-transform`}>
+                    <f.icon className="w-7 h-7" />
+                 </div>
+                 <h3 className="text-xl font-bold text-white mb-4 uppercase italic">{f.title}</h3>
+                 <p className="text-white/40 text-sm leading-relaxed font-medium">{f.desc}</p>
               </div>
-              <div className="flex gap-4 text-[9px] font-black uppercase tracking-widest opacity-30" style={{ color: 'var(--text-tertiary)' }}>
-                <span>Мир</span>
-                <span>Visa</span>
-                <span>Mastercard</span>
-                <span>T-Pay</span>
-                <span>СБП</span>
-              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Тарифы */}
+      <section id="tariffs" className="py-32 px-6">
+         <div className="max-w-7xl mx-auto text-center space-y-20">
+            <div className="space-y-4">
+               <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#0A84FF]">Стоимость использования</p>
+               <h2 className="text-4xl sm:text-6xl font-black text-white uppercase italic tracking-tighter">Гибкие тарифные планы</h2>
             </div>
-            <div className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
-              Сделано в России для юристов нового поколения
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+               {[
+                 { name: 'Базовый', price: '0 ₽', color: 'text-white/40', features: ['2 документа', '2 проверки', 'AI Консультант'] },
+                 { name: 'Pro', price: '290 ₽', color: 'text-indigo-400', popular: true, features: ['50 документов', '25 проверок', 'Приоритетная скорость'] },
+                 { name: 'Бизнес', price: '990 ₽', color: 'text-amber-400', features: ['200 документов', '100 проверок', 'Полный API доступ'] },
+               ].map((t, i) => (
+                 <div key={i} className={`p-12 rounded-[45px] border transition-all flex flex-col justify-between h-full ${t.popular ? 'bg-[#0A84FF]/5 border-[#0A84FF]/20 scale-105 z-10' : 'bg-white/[0.01] border-white/5'}`}>
+                    <div className="space-y-8">
+                       <div className="space-y-2">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-white/30">{t.name}</p>
+                          <div className={`text-5xl font-black italic uppercase ${t.color}`}>{t.price}</div>
+                       </div>
+                       <ul className="space-y-4 text-left">
+                          {t.features.map((f, j) => (
+                            <li key={j} className="flex items-center gap-3 text-sm font-medium text-white/60">
+                               <CheckCircle className="w-4 h-4 text-[#0A84FF]" /> {f}
+                            </li>
+                          ))}
+                       </ul>
+                    </div>
+                    <Link to="/register" className="mt-12">
+                       <Button variant={t.popular ? 'primary' : 'secondary'} className="w-full h-14 rounded-2xl font-black uppercase tracking-widest text-[10px]">
+                          Выбрать тариф
+                       </Button>
+                    </Link>
+                 </div>
+               ))}
             </div>
+         </div>
+      </section>
+
+      {/* Футер */}
+      <footer className="py-20 px-6 border-t border-white/5 bg-black/50">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
+          <Logo size="md" />
+          <div className="flex gap-10 text-[10px] font-black uppercase tracking-widest text-white/20">
+             <Link to="/terms" className="hover:text-white transition-colors">Условия использования</Link>
+             <Link to="/privacy" className="hover:text-white transition-colors">Конфиденциальность</Link>
+             <a href="#" className="hover:text-white transition-colors">Поддержка</a>
+          </div>
+          <div className="text-[10px] font-bold text-white/10 uppercase tracking-widest">
+             © 2026 Laxly AI Law. Все права защищены.
           </div>
         </div>
       </footer>

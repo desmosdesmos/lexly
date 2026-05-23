@@ -1,0 +1,35 @@
+[sshd]
+enabled = true
+port    = ssh
+logpath = %(sshd_log)s
+backend = %(sshd_backend)s
+maxretry = 3
+bantime = 1h
+
+[nginx-http-auth]
+enabled = true
+filter  = nginx-http-auth
+port    = http,https
+logpath = /var/log/nginx/error.log
+
+[nginx-botsearch]
+enabled = true
+filter  = nginx-botsearch
+port    = http,https
+logpath = /var/log/nginx/access.log
+maxretry = 2
+
+[nginx-bad-request]
+enabled  = true
+port     = http,https
+filter   = nginx-bad-request
+logpath  = /var/log/nginx/access.log
+maxretry = 2
+
+[nginx-limit-req]
+enabled = true
+port    = http,https
+filter  = nginx-limit-req
+logpath = /var/log/nginx/laxlylaw_error.log
+maxretry = 10
+bantime = 10m

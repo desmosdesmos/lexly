@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Crown, Check, X, ArrowRight, CreditCard, Zap, Shield, Star, Ticket, ShieldCheck, Truck, Loader2 } from 'lucide-react'
+import { Crown, Check, X, ArrowRight, CreditCard, Zap, Shield, Star, Ticket, ShieldCheck, Truck, Loader2, History, RefreshCcw } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { toast } from 'react-toastify'
 import api from '../services/api'
@@ -11,22 +11,27 @@ export function SubscriptionPage() {
   const [loading, setLoading] = useState(true)
   const [backendPlans, setBackendPlans] = useState([])
   const [isSubscribing, setIsSubscribing] = useState(null)
+  const [history, setHistory] = useState([])
+  const [checkingPayment, setCheckingPayment] = useState(null)
+
+  const loadData = async () => {
+    try {
+      const [usageRes, plansRes, historyRes] = await Promise.all([
+        api.get('/user/usage'),
+        api.get('/payments/plans'),
+        api.get('/payments/history?limit=5')
+      ])
+      setUsage(usageRes.data)
+      setBackendPlans(plansRes.data.plans)
+      setHistory(historyRes.data.items)
+    } catch (error) {
+      console.error('Failed to load data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [usageRes, plansRes] = await Promise.all([
-          api.get('/user/usage'),
-          api.get('/payments/plans')
-        ])
-        setUsage(usageRes.data)
-        setBackendPlans(plansRes.data.plans)
-      } catch (error) {
-        console.error('Failed to load data:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadData()
   }, [])
 
@@ -38,8 +43,9 @@ export function SubscriptionPage() {
       description: 'Для базовых задач',
       buttonClass: 'bg-white/5 hover:bg-white/10 text-white/70',
       features: [
-        '5 документов в месяц',
-        '3 проверки договора',
+        '2 документа в месяц',
+        '2 проверки договора',
+        '3 AI вопроса в день',
         'Базовая поддержка',
       ]
     },
@@ -57,13 +63,22 @@ export function SubscriptionPage() {
       description: 'Профессиональный уровень',
       buttonClass: 'bg-[#0A84FF] hover:bg-[#007AFF] text-white shadow-[0_0_20px_rgba(10,132,255,0.3)]',
       features: [
+        '50 документов в месяц',
+        '25 проверок договоров',
+        'Приоритетная поддержка',
+      ]
+    },
+    business: {
+      description: 'Для профессионалов',
+      buttonClass: 'bg-[#0A84FF] hover:bg-[#007AFF] text-white shadow-[0_0_20px_rgba(10,132,255,0.3)]',
+      features: [
         '200 документов в месяц',
         '100 проверок договоров',
         'Приоритетная поддержка',
         'API доступ',
       ]
     },
-    business: {
+    enterprise: {
       description: 'Максимум возможностей',
       buttonClass: 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-[0_0_20px_rgba(245,158,11,0.2)]',
       features: [
@@ -100,6 +115,23 @@ export function SubscriptionPage() {
       toast.error(error.response?.data?.detail || 'Ошибка при создании платежа')
     } finally {
       setIsSubscribing(null)
+    }
+  }
+
+  const handleCheckStatus = async (paymentId) => {
+    setCheckingPayment(paymentId)
+    try {
+      const res = await api.get(`/payments/check/${paymentId}`)
+      if (res.data.status === 'completed') {
+        toast.success('Оплата подтверждена! Тариф обновлен.')
+        loadData()
+      } else {
+        toast.info(res.data.message || 'Платеж еще обрабатывается')
+      }
+    } catch (error) {
+      toast.error('Ошибка при проверке статуса')
+    } finally {
+      setCheckingPayment(null)
     }
   }
 
@@ -270,6 +302,44 @@ export function SubscriptionPage() {
         </div>
       </div>
 
+      {/* Payment History (Simple) */}
+      {history.length > 0 && (
+        <div className="space-y-6 pt-10">
+          <div className="flex items-center gap-3">
+            <History className="w-6 h-6 text-white/40" />
+            <h2 className="text-2xl font-bold text-white">Последние платежи</h2>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            {history.map((item) => (
+              <div key={item.id} className="p-6 rounded-[30px] bg-white/[0.02] border border-white/5 flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-bold text-white uppercase tracking-wider">Тариф {item.plan_id}</span>
+                  <span className="text-xs text-white/30">{new Date(item.created_at).toLocaleString('ru-RU')}</span>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-right">
+                    <div className="text-lg font-black text-white">{item.amount} {item.currency}</div>
+                    <div className={`text-[10px] font-black uppercase tracking-widest ${item.status === 'completed' ? 'text-green-500' : item.status === 'pending' ? 'text-amber-500' : 'text-red-500'}`}>
+                      {item.status === 'completed' ? 'Оплачено' : item.status === 'pending' ? 'Ожидание' : 'Ошибка'}
+                    </div>
+                  </div>
+                  {item.status === 'pending' && (
+                    <button
+                      onClick={() => handleCheckStatus(item.id)}
+                      disabled={checkingPayment === item.id}
+                      className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-white/60 transition-all active:scale-95 disabled:opacity-50"
+                      title="Проверить статус"
+                    >
+                      {checkingPayment === item.id ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCcw className="w-5 h-5" />}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Detailed Comparison Table */}
       <div className="space-y-8 pt-10">
         <h2 className="text-2xl font-bold text-white text-center sm:text-left">Подробное сравнение</h2>
@@ -281,19 +351,22 @@ export function SubscriptionPage() {
                   <th className="py-6 px-8 text-[11px] font-black uppercase tracking-[0.2em] text-white/30">Параметр</th>
                   <th className="py-6 px-8 text-sm font-bold text-white/60">Free</th>
                   <th className="py-6 px-8 text-sm font-bold text-[#0A84FF]">Pro</th>
-                  <th className="py-6 px-8 text-sm font-bold text-amber-500">Бизнес</th>
+                  <th className="py-6 px-8 text-sm font-bold text-[#0A84FF]">Бизнес</th>
+                  <th className="py-6 px-8 text-sm font-bold text-amber-500">Корп.</th>
                 </tr>
               </thead>
               <tbody className="text-sm">
                 <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
                   <td className="py-5 px-8 text-white/70 font-medium">Документы / мес</td>
-                  <td className="py-5 px-8 text-white/40">5</td>
+                  <td className="py-5 px-8 text-white/40">2</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">50</td>
                   <td className="py-5 px-8 text-white/90 font-bold">200</td>
                   <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
                 <tr className="border-b border-white/5 hover:bg-white/[0.01] transition-colors">
                   <td className="py-5 px-8 text-white/70 font-medium">Проверки договоров</td>
-                  <td className="py-5 px-8 text-white/40">3</td>
+                  <td className="py-5 px-8 text-white/40">2</td>
+                  <td className="py-5 px-8 text-white/90 font-bold">25</td>
                   <td className="py-5 px-8 text-white/90 font-bold">100</td>
                   <td className="py-5 px-8 text-amber-500 font-black italic">Безлимит</td>
                 </tr>
@@ -301,12 +374,14 @@ export function SubscriptionPage() {
                   <td className="py-5 px-8 text-white/70 font-medium">Поддержка</td>
                   <td className="py-5 px-8 text-white/40">Стандарт</td>
                   <td className="py-5 px-8 text-[#0A84FF] font-bold">Приоритет</td>
+                  <td className="py-5 px-8 text-[#0A84FF] font-bold">Приоритет</td>
                   <td className="py-5 px-8 text-amber-500 font-bold italic">Персонально</td>
                 </tr>
                 <tr className="hover:bg-white/[0.01] transition-colors">
-                  <td className="py-5 px-8 text-white/70 font-medium">API Доступ</td>
+                  <td className="py-5 px-8 text-white/70 font-medium">Командный доступ</td>
                   <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
-                  <td className="py-5 px-8"><Check className="w-5 h-5 text-green-500" /></td>
+                  <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
+                  <td className="py-5 px-8"><X className="w-4 h-4 text-white/10" /></td>
                   <td className="py-5 px-8"><Check className="w-5 h-5 text-green-500" /></td>
                 </tr>
               </tbody>

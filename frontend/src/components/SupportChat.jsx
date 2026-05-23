@@ -20,17 +20,25 @@ export function SupportChat() {
 
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      } catch (e) {
+        console.warn('Scroll to bottom failed:', e)
+        messagesEndRef.current.scrollIntoView(false)
+      }
     }
   }
 
   const loadMessages = async (silent = false) => {
+    if (!user) return
     try {
       const response = await api.get('/support/messages')
-      const data = Array.isArray(response) ? response : (response.data || [])
+      // Axios response structure: response.data is the actual payload
+      const data = response?.data || response
       setMessages(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Failed to load support messages:', error)
+      if (!silent) toast.error('Не удалось загрузить сообщения')
     } finally {
       if (!silent) setInitialLoading(false)
     }
@@ -39,35 +47,41 @@ export function SupportChat() {
   useEffect(() => {
     if (user && isOpen && !isMinimized) {
       loadMessages()
-      pollingRef.current = setInterval(() => {
+      const interval = setInterval(() => {
         loadMessages(true)
-      }, 3000)
-    }
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current)
+      }, 4000) // Slightly longer interval
+      pollingRef.current = interval
+      return () => clearInterval(interval)
     }
   }, [user, isOpen, isMinimized])
 
   useEffect(() => {
-    if (isOpen && !isMinimized) {
-      setTimeout(scrollToBottom, 150)
+    if (isOpen && !isMinimized && messages.length > 0) {
+      const timer = setTimeout(scrollToBottom, 300)
+      return () => clearTimeout(timer)
     }
-  }, [messages, isOpen, isMinimized])
+  }, [messages.length, isOpen, isMinimized])
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('Файл слишком большой (макс. 5МБ)')
-        return
+    try {
+      const file = e.target.files?.[0]
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          toast.error('Файл слишком большой (макс. 5МБ)')
+          return
+        }
+        setSelectedImage(file)
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setImagePreview(reader.result)
+        }
+        reader.onerror = () => {
+          toast.error('Ошибка при чтении файла')
+        }
+        reader.readAsDataURL(file)
       }
-      setSelectedImage(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result)
-      }
-      reader.readAsDataURL(file)
+    } catch (err) {
+      console.error('File selection error:', err)
     }
   }
 
@@ -79,6 +93,7 @@ export function SupportChat() {
     if (message.trim()) formData.append('message', message.trim())
     if (selectedImage) formData.append('image', selectedImage)
 
+    const currentMsg = message
     setMessage('')
     setSelectedImage(null)
     setImagePreview(null)
@@ -91,6 +106,7 @@ export function SupportChat() {
       await loadMessages(true)
     } catch (error) {
       console.error('Failed to send message:', error)
+      setMessage(currentMsg) // Restore message on failure
       toast.error('Ошибка отправки сообщения')
     } finally {
       setLoading(false)
@@ -105,18 +121,18 @@ export function SupportChat() {
       {isOpen && (
         <div 
           className={`
-            flex flex-col mb-4 bg-[#1C1C1E] border border-white/10 shadow-[0_32px_80px_rgba(0,0,0,0.7)] 
+            flex flex-col mb-4 bg-[var(--bg-secondary)] border border-[var(--card-border)] shadow-[0_32px_80px_rgba(0,0,0,0.3)] 
             transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] transform origin-bottom-right
             ${isMinimized 
               ? 'h-[72px] w-[280px] sm:w-[320px] rounded-[40px]' 
-              : 'h-[75vh] sm:h-[580px] w-[calc(100vw-32px)] sm:w-[380px] rounded-[50px]'
+              : 'h-[80vh] max-h-[700px] w-[calc(100vw-32px)] sm:w-[400px] rounded-[40px] sm:rounded-[50px]'
             }
           `}
         >
           {/* Header */}
           <div 
-            className="bg-gradient-to-br from-[#0A84FF] via-[#5E5CE6] to-[#BF5AF2] p-4 flex items-center justify-between relative overflow-hidden flex-shrink-0" 
-            style={{ borderRadius: isMinimized ? '40px' : '50px 50px 0 0' }}
+            className="bg-gradient-to-br from-[#0A84FF] to-[#007AFF] p-4 flex items-center justify-between relative overflow-hidden flex-shrink-0" 
+            style={{ borderRadius: isMinimized ? '40px' : '40px 40px 0 0' }}
           >
             <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
             
@@ -155,32 +171,32 @@ export function SupportChat() {
           {/* Messages Area */}
           {!isMinimized && (
             <div className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar bg-gradient-to-b from-[#1C1C1E] to-[#121214]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar bg-[var(--bg-primary)]">
                 {initialLoading ? (
                   <div className="h-full flex flex-col items-center justify-center gap-4">
-                    <div className="w-10 h-10 border-4 border-[#0A84FF]/20 border-t-[#0A84FF] rounded-full animate-spin"></div>
-                    <span className="text-white/30 text-[10px] font-bold uppercase tracking-widest">Синхронизация...</span>
+                    <div className="w-10 h-10 border-4 border-[var(--accent)]/20 border-t-[var(--accent)] rounded-full animate-spin"></div>
+                    <span className="text-[var(--text-tertiary)] text-[10px] font-bold uppercase tracking-widest">Синхронизация...</span>
                   </div>
                 ) : !Array.isArray(messages) || messages.length === 0 ? (
                   <div className="text-center py-12 px-8 flex flex-col items-center">
-                    <div className="w-20 h-20 rounded-[28px] bg-gradient-to-br from-white/10 to-transparent flex items-center justify-center mb-5 border border-white/10 shadow-2xl">
-                      <Smile className="w-10 h-10 text-white/10" />
+                    <div className="w-20 h-20 rounded-[28px] bg-white/5 flex items-center justify-center mb-5 border border-[var(--card-border)] shadow-xl">
+                      <Smile className="w-10 h-10 text-[var(--text-tertiary)]" />
                     </div>
-                    <h4 className="text-white font-bold text-base mb-2">Чем помочь?</h4>
-                    <p className="text-white/40 text-[13px] leading-relaxed max-w-[200px] mx-auto">Мы на связи и готовы помочь с любым вопросом.</p>
+                    <h4 className="text-[var(--text-primary)] font-bold text-base mb-2 font-sans">Чем помочь?</h4>
+                    <p className="text-[var(--text-tertiary)] text-[13px] leading-relaxed max-w-[200px] mx-auto">Мы на связи и готовы помочь с любым вопросом.</p>
                   </div>
                 ) : (
                   messages.map((msg) => (
                     <div key={msg.id} className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
                       <div className={`
-                        max-w-[85%] p-3.5 rounded-[24px] shadow-lg transition-all
+                        max-w-[85%] p-3.5 rounded-[24px] shadow-sm transition-all
                         ${msg.sender === 'user' 
-                          ? 'bg-gradient-to-br from-[#0A84FF] to-[#007AFF] text-white rounded-tr-none' 
-                          : 'bg-[#2C2C2E] text-white/95 border border-white/5 rounded-tl-none'
+                          ? 'bg-[#0A84FF] text-white rounded-tr-none shadow-[#0A84FF]/10' 
+                          : 'bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--card-border)] rounded-tl-none'
                         }
                       `}>
                         {msg.image_url && (
-                          <div className="mb-2 rounded-[18px] overflow-hidden border border-white/10 shadow-inner group">
+                          <div className="mb-2 rounded-[18px] overflow-hidden border border-[var(--card-border)] shadow-inner group">
                             <img 
                               src={msg.image_url.startsWith('http') ? msg.image_url : msg.image_url} 
                               alt="Attachment" 
@@ -189,9 +205,9 @@ export function SupportChat() {
                             />
                           </div>
                         )}
-                        {msg.text && <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.5] font-medium">{msg.text}</p>}
+                        {msg.text && <p className="whitespace-pre-wrap break-words text-[14px] leading-[1.5] font-medium font-sans">{msg.text}</p>}
                       </div>
-                      <span className="text-[9px] font-black text-white/10 mt-1.5 px-2 uppercase tracking-widest">
+                      <span className="text-[9px] font-bold text-[var(--text-tertiary)] mt-1.5 px-2 uppercase tracking-widest">
                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
@@ -202,7 +218,7 @@ export function SupportChat() {
 
               {/* Image Preview */}
               {imagePreview && (
-                <div className="px-4 py-3 bg-[#2C2C2E]/95 backdrop-blur-xl border-t border-white/10 flex items-center gap-3">
+                <div className="px-4 py-3 bg-[var(--bg-elevated)] backdrop-blur-xl border-t border-[var(--card-border)] flex items-center gap-3">
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-[#0A84FF] shadow-2xl">
                     <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
                     <button 
@@ -213,7 +229,7 @@ export function SupportChat() {
                     </button>
                   </div>
                   <div className="flex-1">
-                    <p className="text-white text-xs font-bold truncate">{selectedImage.name}</p>
+                    <p className="text-[var(--text-primary)] text-xs font-bold truncate">{selectedImage.name}</p>
                     <p className="text-[#0A84FF] text-[10px] font-black uppercase tracking-wider mt-0.5">К отправке</p>
                   </div>
                 </div>
@@ -222,14 +238,14 @@ export function SupportChat() {
               {/* Input Area */}
               <form 
                 onSubmit={handleSend} 
-                className="p-4 bg-[#1C1C1E] border-t border-white/10" 
+                className="p-4 bg-[var(--bg-secondary)] border-t border-[var(--card-border)]" 
                 style={{ borderRadius: '0 0 50px 50px' }}
               >
-                <div className="relative flex items-end gap-2.5 bg-white/[0.03] rounded-[30px] p-2.5 border border-white/10 focus-within:border-[#0A84FF]/40 focus-within:bg-white/[0.06] transition-all duration-500">
+                <div className="relative flex items-end gap-2.5 bg-[var(--hover-bg)] rounded-[30px] p-2.5 border border-[var(--card-border)] focus-within:border-[#0A84FF]/40 transition-all duration-500">
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-10 h-10 rounded-xl hover:bg-[#0A84FF]/10 flex items-center justify-center text-white/30 hover:text-[#0A84FF] transition-all active:scale-90 flex-shrink-0"
+                    className="w-10 h-10 rounded-xl hover:bg-[#0A84FF]/10 flex items-center justify-center text-[var(--text-tertiary)] hover:text-[#0A84FF] transition-all active:scale-90 flex-shrink-0"
                   >
                     <Camera className="w-5 h-5" />
                   </button>
@@ -256,7 +272,7 @@ export function SupportChat() {
                       }
                     }}
                     placeholder="Ваш вопрос..."
-                    className="flex-1 bg-transparent border-none px-1 py-2 text-[14px] text-white placeholder-white/15 focus:ring-0 resize-none max-h-[100px] custom-scrollbar font-medium"
+                    className="flex-1 bg-transparent border-none px-1 py-2 text-[14px] text-[var(--text-primary)] placeholder-[var(--text-placeholder)] focus:ring-0 resize-none max-h-[100px] custom-scrollbar font-medium font-sans"
                   />
                   
                   <button
@@ -287,12 +303,12 @@ export function SupportChat() {
             {/* Notification badge */}
             <div className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF3B30] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-[#FF3B30] border-2 border-[#1C1C1E]"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-[#FF3B30] border-2 border-white/10"></span>
             </div>
           </div>
           
           {/* Label on Hover */}
-          <div className="absolute right-[80px] top-1/2 -translate-y-1/2 bg-[#1C1C1E]/95 backdrop-blur-xl border border-white/10 text-white text-[10px] font-black py-2 px-4 rounded-[20px] opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none whitespace-nowrap shadow-2xl translate-x-4 group-hover:translate-x-0 hidden lg:block tracking-widest">
+          <div className="absolute right-[80px] top-1/2 -translate-y-1/2 bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--card-border)] text-[var(--text-primary)] text-[10px] font-bold py-2.5 px-5 rounded-[22px] opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none whitespace-nowrap shadow-2xl translate-x-4 group-hover:translate-x-0 hidden lg:block tracking-widest uppercase shadow-black/20">
             НУЖНА ПОМОЩЬ? <span className="text-[#0A84FF] ml-1">ПИШИТЕ!</span>
           </div>
         </button>

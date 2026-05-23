@@ -64,14 +64,14 @@ async def monitor_legislation(
         # Сначала получаем реальные изменения для базы (grounding)
         if request.topic:
             # Если есть тема, ищем конкретно по ней
-            real_changes = await garant_parser.search_law_changes(query=request.topic, limit=10)
+            real_changes = await garant_parser.search_law_changes(query=request.topic, limit=20)
         else:
             # Если темы нет, берем общие последние изменения
-            real_changes = await garant_parser.get_latest_changes(limit=10)
+            real_changes = await garant_parser.get_latest_changes(limit=30)
 
         analysis = await ai_service.monitor_legislation(
             topic=request.topic,
-            real_changes=real_changes[:5] # Передаем топ-5 для контекста
+            real_changes=real_changes[:15] # Передаем топ-15 для контекста (было 5)
         )
 
         # Инкремент
@@ -167,7 +167,8 @@ async def search_legislation(
         )
 
     try:
-        changes = await garant_parser.get_latest_changes(limit=50)
+        # Пытаемся получить больше новостей для поиска
+        changes = await garant_parser.get_latest_changes(limit=100)
 
         # Фильтрация по ключевому слову (мягкая - ищем частичное совпадение)
         query_lower = query.lower()
@@ -178,15 +179,13 @@ async def search_legislation(
             or query_lower in change.get("number", "").lower()
         ]
 
-        # Если ничего не найдено прямой фильтрацией - используем AI для анализа
-        if not filtered and changes:
-            # Вернём первые результаты с пометкой
-            filtered = changes[:limit]
-
+        # Если ничего не найдено - возвращаем пустой список, а не случайные новости
+        # Это честнее по отношению к пользователю
         return {
             "query": query,
             "total": len(filtered),
             "changes": filtered[:limit],
+            "is_fallback": False
         }
 
     except Exception as e:

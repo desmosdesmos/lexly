@@ -297,7 +297,7 @@ async def google_login(request: GoogleAuthRequest, db: AsyncSession = Depends(ge
 
             subscription = Subscription(user_id=user.id, plan_type="free", status="active")
             db.add(subscription)
-            usage_limit = UsageLimit(user_id=user.id, plan_type="free", max_documents=2, max_contracts=1)
+            usage_limit = UsageLimit(user_id=user.id, plan_type="free", max_documents=2, max_contracts=2)
             db.add(usage_limit)
             await db.commit()
             await db.refresh(user)

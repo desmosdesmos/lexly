@@ -1,8 +1,7 @@
 import enum
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import Column, String, DateTime, Enum, Numeric, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSON
+from sqlalchemy import Column, String, DateTime, Enum, Numeric, ForeignKey, JSON
 from sqlalchemy.sql import func
 import uuid
 
@@ -20,8 +19,8 @@ class PaymentStatus(str, enum.Enum):
 class Payment(Base):
     __tablename__ = "payments"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(3), nullable=False, default="RUB")
     status = Column(Enum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)

@@ -2,6 +2,8 @@
 import json
 import logging
 import base64
+import os
+import hashlib
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 
@@ -46,14 +48,6 @@ class GigaChatClient:
     ) -> str:
         """
         Выполнить запрос к GigaChat API.
-
-        Args:
-            messages: Список сообщений (role, content)
-            temperature: Температура генерации
-            max_tokens: Максимальное количество токенов
-
-        Returns:
-            Текст ответа
         """
         from gigachat.models import Chat, Messages
         
@@ -138,19 +132,7 @@ class AIService:
         max_tokens: Optional[int] = None,
         response_format: Optional[Dict[str, str]] = None,
     ) -> str:
-        """
-        Сгенерировать ответ от AI.
-
-        Args:
-            system_prompt: Системный промпт (инструкции для AI)
-            user_prompt: Пользовательский промпт (запрос)
-            temperature: Температура генерации (0.0 - 1.0)
-            max_tokens: Максимальное количество токенов
-            response_format: Формат ответа ({"type": "json_object"} для JSON)
-
-        Returns:
-            Текст ответа
-        """
+        """Сгенерировать ответ от AI."""
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -160,10 +142,7 @@ class AIService:
         tokens = max_tokens if max_tokens is not None else self.max_tokens
 
         try:
-            # GigaChat использует собственный клиент
             if self.gigachat_client:
-                # GigaChat пока не поддерживает response_format напрямую
-                # Поэтому просто добавляем инструкцию в промпт
                 if response_format and response_format.get("type") == "json_object":
                     messages[-1]["content"] += "\n\nВАЖНО: Верни ответ СТРОГО в формате JSON."
                 
@@ -172,10 +151,8 @@ class AIService:
                     temperature=temp,
                     max_tokens=tokens,
                 )
-                logger.info(f"GigaChat request successful: {tokens} tokens max")
                 return content
             else:
-                # OpenAI-compatible клиенты (GROQ/OpenAI)
                 kwargs = {
                     "model": self.model,
                     "messages": messages,
@@ -187,16 +164,7 @@ class AIService:
                     kwargs["response_format"] = response_format
 
                 response = await self.openai_client.chat.completions.create(**kwargs)
-
-                if not response.choices:
-                    raise ValueError("AI вернул пустой ответ")
-
                 content = response.choices[0].message.content
-
-                if not content:
-                    raise ValueError("AI вернул пустое содержимое")
-
-                logger.info(f"AI request successful: {response.usage.total_tokens if response.usage else 'unknown'} tokens used")
                 return content
 
         except Exception as e:
@@ -210,9 +178,7 @@ class AIService:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """
-        Сгенерировать JSON ответ от AI с автоматическим исправлением ошибок.
-        """
+        """Сгенерировать JSON ответ от AI с автоматическим исправлением ошибок."""
         response_text = await self.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
@@ -222,47 +188,33 @@ class AIService:
         )
         
         def clean_json_text(text: str) -> str:
-            # 1. Базовая очистка
             text = text.strip()
-            
-            # 2. Удаление markdown оберток ```json ... ``` или ``` ... ```
             import re
             if "```" in text:
-                # Ищем содержимое между тройными кавычками
                 blocks = re.findall(r'```(?:json)?\s*({.*})\s*```', text, re.DOTALL)
                 if blocks:
                     text = blocks[0].strip()
                 else:
-                    # Если не нашли по шаблону, просто пробуем вырезать всё что до первого { и после последнего }
                     start = text.find("{")
                     end = text.rfind("}")
                     if start != -1 and end != -1:
                         text = text[start:end+1]
-
             return text
 
         def repair_json_logic(text: str) -> str:
             import re
-            # 1. Удаляем лишние запятые перед закрывающими скобками
             text = re.sub(r',\s*([}\]])', r'\1', text)
-            
-            # 2. Исправляем двойные открывающие фигурные скобки внутри массивов [ {{ ... }} ]
-            # Это частая ошибка AI
             text = re.sub(r'\[\s*\{\s*\{', '[ {', text)
             text = re.sub(r'\}\s*\}\s*\]', '} ]', text)
             text = re.sub(r'\}\s*,\s*\{\s*\{', '}, {', text)
-
-            # 3. Исправляем пропущенные кавычки вокруг ключей
             text = re.sub(r'([{,]\s*)(\w+)(\s*:)', r'\1"\2"\3', text)
             
-            # 4. Если всё еще не парсится, пробуем заменить одинарные кавычки на двойные
             try:
                 json.loads(text)
                 return text
             except json.JSONDecodeError:
-                # Только те, что похожи на кавычки вокруг ключей или значений
-                text = re.sub(r"\'(\w+)\'\s*:", r'"\1":', text)  # ключи
-                text = re.sub(r":\s*\'(.*?)\'", r': "\1"', text)  # строковые значения
+                text = re.sub(r"\'(\w+)\'\s*:", r'"\1":', text)
+                text = re.sub(r":\s*\'(.*?)\'", r': "\1"', text)
                 return text
 
         cleaned_text = clean_json_text(response_text)
@@ -271,255 +223,194 @@ class AIService:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
             try:
-                # Вторая попытка с исправлением
                 repaired = repair_json_logic(cleaned_text)
                 return json.loads(repaired)
             except json.JSONDecodeError:
-                # Если всё совсем плохо, пробуем вырезать объект еще раз (на случай если там был текст вокруг)
                 try:
                     import re
                     match = re.search(r'\{.*\}', cleaned_text, re.DOTALL)
                     if match:
                         return json.loads(repair_json_logic(match.group()))
-                except:
-                    pass
-                
-                logger.error(f"Failed to parse JSON response. Error: {str(e)}\nRaw: {response_text[:1000]}")
+                except: pass
                 raise ValueError(f"AI вернул невалидный JSON: {str(e)}")
 
     async def generate_document(self, document_type: str, data: Dict[str, Any]) -> str:
-        """
-        Сгенерировать юридический документ.
-
-        Args:
-            document_type: Тип документа (claim, complaint, demand)
-            data: Данные для генерации
-
-        Returns:
-            Текст документа
-        """
-        import os
-        
-        # Нормализуем тип документа
+        """Сгенерировать юридический документ."""
         dt = document_type.lower()
-        if "claim" in dt:
-            doc_type = "claim"
-        elif "complaint" in dt:
-            doc_type = "complaint"
-        elif "demand" in dt:
-            doc_type = "demand"
-        else:
-            doc_type = "claim"
+        mapping = {
+            "claim": "claim", "complaint": "complaint", "demand": "demand",
+            "contract_sale": "contract_sale", "contract_employment": "contract_employment",
+            "power_of_attorney": "power_of_attorney"
+        }
+        doc_type = "claim"
+        for k, v in mapping.items():
+            if k in dt: doc_type = v; break
         
-        # Путь к промпту относительно backend директории
         base_dir = os.getcwd()
         prompt_file = os.path.join(base_dir, "..", "prompts", "document-generator", f"{doc_type}.txt")
         
-        try:
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                template = f.read()
-        except FileNotFoundError:
-            raise ValueError(f"Промпт для документа '{document_type}' не найден")
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            template = f.read()
 
-        # Замена переменных в шаблоне
         user_prompt = template
         for key, value in data.items():
             placeholder = f"{{{{{key.upper()}}}}}"
             if isinstance(value, list):
                 value = "\n".join(f"- {item}" for item in value)
-            elif isinstance(value, dict):
-                value = json.dumps(value, ensure_ascii=False, indent=2)
             user_prompt = user_prompt.replace(placeholder, str(value))
 
-        # Системный промпт для генерации документов
-        system_prompt = """Ты — профессиональный AI-юрист, специализирующийся на российском законодательстве.
-Твоя задача — составлять юридически грамотные документы.
+        if "claim" in dt:
+            role = "Специалист по судебным искам"
+            goal = "составить исковое заявление"
+        elif "complaint" in dt:
+            role = "Эксперт по жалобам и апелляциям"
+            goal = "составить официальную жалобу"
+        elif "demand" in dt:
+            role = "Юрист по досудебному урегулированию"
+            goal = "составить досудебную претензию"
+        elif "contract" in dt:
+            role = "Эксперт по договорному праву"
+            goal = "составить гражданско-правовой договор (НЕ ИСК)"
+        elif "attorney" in dt:
+            role = "Нотариальный юрист"
+            goal = "составить доверенность"
+        else:
+            role = "Старший юрист"
+            goal = "составить юридический документ"
 
-КРИТИЧЕСКИЕ ПРАВИЛА:
-1. Используй ТОЛЬКО реальные, действующие нормы права РФ.
-2. НИКОГДА не выдумывай статьи, законы или судебные решения.
-3. Если не уверен в конкретной статье — используй общие формулировки без ссылок на статьи.
-4. Все ссылки на законы должны быть проверены и актуальны на 2026 год.
-5. Используй официальный юридический стиль.
-6. НЕ добавляй вымышленные факты."""
+        system_prompt = f"""Ты — {role} РФ. Твоя задача — {goal}.
+ПРАВИЛА: 
+1. Только реальные нормы права. 
+2. Актуальность 2026 год. 
+3. Официальный стиль.
+4. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать суды и иски, если ты составляешь ДОГОВОР или ДОВЕРЕННОСТЬ."""
 
-        return await self.generate(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=8192,
-        )
+        return await self.generate(system_prompt=system_prompt, user_prompt=user_prompt, temperature=0.1, max_tokens=8192)
 
     async def review_contract(self, contract_text: str) -> Dict[str, Any]:
         """
-        Проанализировать договор на риски.
-
-        Args:
-            contract_text: Текст договора для анализа
-
-        Returns:
-            Структурированный анализ с рисками
+        Проанализировать договор на риски с выставлением Risk Score.
         """
-        import os
-        
-        # Путь к промпту относительно backend директории
-        base_dir = os.getcwd()
-        prompt_file = os.path.join(base_dir, "..", "prompts", "contract-reviewer", "analysis.txt")
-        
-        try:
-            with open(prompt_file, "r", encoding="utf-8") as f:
-                template = f.read()
-        except FileNotFoundError:
-            raise ValueError("Промпт для анализа договора не найден")
-
-        user_prompt = template.replace("{{CONTRACT_TEXT}}", contract_text)
-
-        system_prompt = """Ты — профессиональный AI-юрист-аналитик, специализирующийся на договорном праве РФ.
-Твоя задача — анализировать договоры на наличие рисков и проблем.
+        system_prompt = """Ты — СТАРШИЙ AI-ЮРИСТ-АУДИТОР. Твоя задача: провести глубокий аудит договора и выставить Risk Score.
 
 КРИТИЧЕСКИЕ ПРАВИЛА:
-1. Анализируй ТОЛЬКО на основе действующего законодательства РФ (2026 год).
-2. НЕ выдумывай риски, которых нет в тексте.
-3. Будь объективным и конкретным.
-4. Все ссылки на законы должны быть реальными и актуальными.
-5. Объясняй риски простым языком.
-6. Возвращай СТРОГО JSON без дополнительного текста."""
+1. RISK SCORE: Число от 0 до 100, где 100 — идеально безопасный договор, 0 — катастрофический риск.
+2. RISK LEVEL: 'low' (80-100), 'medium' (50-79), 'high' (0-49).
+3. RISKS: Массив объектов. Каждый риск ОБЯЗАТЕЛЬНО содержит:
+   - severity: 'critical' (красный), 'medium' (желтый), 'low' (синий/зеленый).
+   - title: Краткое название риска.
+   - description: Суть проблемы.
+   - recommendation: Как исправить (конкретно).
+4. Оценка по законодательству РФ 2026.
+5. Возвращай СТРОГО JSON.
+
+ФОРМАТ JSON:
+{
+    "score": 75,
+    "risk_level": "medium",
+    "summary": "Краткое резюме аудита (3-4 предложения).",
+    "risks": [
+        {
+            "severity": "critical",
+            "title": "Отсутствие штрафных санкций",
+            "description": "В договоре не указана неустойка за просрочку платежа.",
+            "recommendation": "Добавить пункт о пени в размере 0.1% за каждый день просрочки."
+        }
+    ],
+    "recommendations": ["Общая рекомендация 1", "Общая рекомендация 2"],
+    "is_valid": true
+}"""
+
+        user_prompt = f"ПРОВЕДИ ПОЛНЫЙ АУДИТ РИСКОВ ЭТОГО ДОГОВОРА:\n\n{contract_text}\n\nВерни СТРОГО JSON."
 
         return await self.generate_json(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=0.2,
+            temperature=0.1,
             max_tokens=8192,
         )
 
-    async def analyze_court_practice(
-        self,
-        topic: str,
-        additional_context: Optional[str] = None,
-        real_cases: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
-        """
-        Профессиональный экспертный анализ судебной практики.
-        """
-        system_prompt = """Ты — СТАРШИЙ AI-ЮРИСТ-АНАЛИТИК с экспертизой в праве РФ. 
-Твоя задача: предоставить МАКСИМАЛЬНО ПОДРОБНЫЙ, ТЕХНИЧЕСКИЙ и АКТУАЛЬНЫЙ анализ судебной практики.
+    async def analyze_court_practice(self, topic: str, additional_context: Optional[str] = None, real_cases: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Профессиональный экспертный анализ судебной практики с опорой на факты."""
+        system_prompt = """Ты — ГЛАВНЫЙ АНАЛИТИК ПРАКТИКИ ВС РФ. 
+Твоя задача: предоставить БЕЗУПРЕЧНЫЙ по точности анализ судебной практики.
 
-КРИТИЧЕСКИЕ ТРЕБОВАНИЯ:
-1. АКТУАЛЬНОСТЬ 2024-2026: Игнорируй старую практику, если она противоречит новым позициям ВС РФ и изменениям в ГК/ГПК/АПК.
-2. ГЛУБОКИЙ АНАЛИЗ ПРЕЦЕДЕНТОВ: Не просто перечисляй дела, а объясняй ПРАВОВУЮ ЛОГИКУ суда (ratio decidendi). Почему суд решил именно так?
-3. ТЕХНИЧЕСКИЕ ДЕТАЛИ: Указывай конкретные статьи, пункты Постановлений Пленума ВС РФ, позиции из Обзоров.
-4. СТРАТЕГИЯ: Дай рекомендации по доказыванию: какие документы нужны, какие экспертизы назначать.
-5. ЗАПРЕТ НА ГАЛЛЮЦИНАЦИИ ССЫЛОК: Используй URL только из предоставленного списка real_cases.
+КРИТИЧЕСКИЕ ТРЕБОВАНИЯ К ИСТОЧНИКАМ (GROUNDING):
+1. ПРИОРИТЕТ ДАТ: Используй только самые свежие дела (2024-2026). Если в списке есть старые дела, помечай это.
+2. ВЕРИФИКАЦИЯ ССЫЛОК: Используй ТОЛЬКО предоставленные URL. Запрещено выдумывать ссылки.
+3. ПРАВОВАЯ ЛОГИКА: Объясняй, почему суды принимают те или иные решения.
+4. ОТСЕИВАНИЕ МУСОРА: Если источник не содержит конкретики по теме, игнорируй его.
 
 ФОРМАТ JSON:
 {
-    "topic": "Уточненная тема",
-    "summary": "Глубокое резюме ситуации (8-10 предложений). Опиши вектор развития практики.",
-    "key_trends": [
-        "Тенденция 1: Описание изменения подхода судов за последние 2 года",
-        "Тенденция 2: Позиция судов по добросовестности",
-        "Тенденция 3", "Тенденция 4", "Тенденция 5"
-    ],
-    "statute_of_limitations": "Детальный разбор: срок, начало течения, возможности восстановления.",
+    "topic": "Тема",
+    "summary": "Аналитический разбор ситуации на 2026 год (8-10 предложений).",
+    "key_trends": ["Тренд 1 с указанием на актуальную практику", "Тренд 2"],
+    "statute_of_limitations": "Срок и нюансы его исчисления.",
     "key_arguments": {
-        "plaintiff": ["Аргумент 1 (статья + логика)", "Процессуальная тактика", "Доказательства"],
-        "defendant": ["Контраргумент 1", "Способ защиты", "Основания отказа"]
+        "plaintiff": ["Аргумент Истца + ссылка на НПА"],
+        "defendant": ["Аргумент Ответчика"]
     },
-    "typical_outcomes": ["Сценарий 1 (частота %, условия)", "Сценарий 2"],
+    "typical_outcomes": ["Сценарий с вероятностью %"],
     "important_precedents": [
         {
-            "description": "Суть спора и решение",
+            "description": "Суть дела",
             "court": "Суд",
-            "year": 2025,
-            "significance": "Прецедентное значение",
-            "source_url": "URL ИЗ СПИСКА real_cases",
-            "law_url": ""
+            "year": "ГГГГ (строго из данных)",
+            "significance": "Почему это важно",
+            "source_url": "URL ИЗ СПИСКА"
         }
     ],
-    "laws": [{"name": "Статья и Кодекс", "description": "Толкование судами", "url": ""}],
-    "recommendations": ["Тактическая (до суда)", "Доказательная (документы)", "Процессуальная (в суде)"],
     "success_rate": 70,
-    "risks": ["Материальный", "Процессуальный", "Расходы"],
-    "sources": [{"title": "Источник", "url": "URL"}],
-    "notes": "Нюанса: территориальные различия, ожидаемые изменения."
+    "risks": ["Материальный риск", "Процессуальный риск"],
+    "sources": [{"title": "Название", "url": "URL", "date": "Дата"}]
 }"""
 
         user_prompt = f"ПРОВЕДИ ГЛУБОКИЙ ЭКСПЕРТНЫЙ АНАЛИЗ судебной практики по теме: {topic}\n"
-        
         if real_cases:
-            user_prompt += "\nБАЗА РЕАЛЬНЫХ ДЕЛ (обязательно используй для анализа):\n"
+            user_prompt += "\nБАЗА РЕАЛЬНЫХ ДЕЛ (ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ ИМЕННО ЭТИ ДАННЫЕ):\n"
             for i, case in enumerate(real_cases):
-                user_prompt += f"КЕЙС {i+1}: {case.get('title')} ({case.get('url')})\nКратко: {case.get('snippet')}\nМета: {case.get('meta')}\n\n"
-
-        if additional_context:
-            user_prompt += f"\nКОНТЕКСТ ОТ КЛИЕНТА: {additional_context}"
-
-        user_prompt += "\n\nОтвет должен быть на уровне старшего юриста. СТРОГО JSON."
-
-        return await self.generate_json(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=4000,
-        )
+                user_prompt += f"ДЕЛO {i+1}: {case.get('title')} | ДАТА: {case.get('date')} | ССЫЛКА: {case.get('url')}\nКОНТЕКСТ: {case.get('snippet')}\nМЕТА: {case.get('meta')}\n\n"
+        if additional_context: user_prompt += f"\nКОНТЕКСТ: {additional_context}"
+        
+        return await self.generate_json(system_prompt=system_prompt, user_prompt=user_prompt, temperature=0.1, max_tokens=4000)
 
     async def monitor_legislation(self, topic: Optional[str] = None, real_changes: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """
-        Экспертный мониторинг законодательства РФ.
-        """
-        system_prompt = """Ты — ГЛАВНЫЙ ЭКСПЕРТ по законотворчеству РФ. 
-Твоя задача: подготовить МАКСИМАЛЬНО ГЛУБОКИЙ и ПОДРОБНЫЙ обзор правовых изменений за 2025-2026 годы.
-
-КРИТИЧЕСКИЕ ТРЕБОВАНИЯ:
-1. АКТУАЛЬНОСТЬ: Игнорируй изменения старше 2024 года, если они не являются базой для текущих реформ.
-2. ПРАКТИЧЕСКАЯ ПОЛЬЗА: Не просто цитируй закон, а объясняй, что КОНКРЕТНО изменилось в процессах (налоги, отчетность, сроки, штрафы).
-3. ОСНОВА НА ФАКТАХ: Обязательно интегрируй данные из списка real_changes. Это твой фундамент.
-4. ЗАПРЕТ НА ГАЛЛЮЦИНАЦИИ ССЫЛОК: Используй URL только из списка real_changes.
+        """Экспертный мониторинг законодательства РФ на базе реальных новостей."""
+        system_prompt = """Ты — ВЕДУЩИЙ ЭКСПЕРТ КОНСУЛЬТАНТ+. Твоя задача: подготовить МАКСИМАЛЬНО АКТУАЛЬНЫЙ обзор изменений.
+КРИТИЧЕСКИЕ ПРАВИЛА:
+1. АКТУАЛЬНОСТЬ: Акцент на 2025-2026 годах. 
+2. СТРОГАЯ ПРИВЯЗКА К ФАКТАМ: Используй названия, номера и даты ТОЛЬКО из списка real_changes.
+3. ПРАКТИЧЕСКИЕ ШАГИ: Что делать юристу завтра?
 
 ФОРМАТ JSON:
 {
-    "report_date": "2026-05-08",
-    "summary": "Масштабный аналитический обзор (8-10 предложений). Опиши логику реформ, их цели и общее влияние на правовую среду.",
+    "report_date": "2026-05-22",
+    "summary": "Анализ вектора изменений (8-10 предложений).",
     "changes": [
         {
-            "id": 1,
-            "title": "Полное название закона/НПА",
-            "law_number": "ФЗ-X от DD.MM.YYYY",
-            "effective_date": "DD.MM.YYYY",
-            "description": "Суть изменения: что было vs что стало. Детальный разбор новых норм.",
-            "impact": "Бизнес-эффект: риски, расходы, новые возможности.",
-            "impact_level": "high",
-            "action_required": true,
-            "affected_areas": ["Налоги", "Корпоративное право"],
-            "recommendations": "Пошаговый алгоритм действий для юриста/руководителя.",
+            "title": "Название НПА",
+            "law_number": "Номер и дата",
+            "effective_date": "Дата вступления (из источника!)",
+            "description": "Суть: было / стало.",
+            "impact": "Бизнес-эффект.",
+            "impact_level": "high/medium/low",
+            "recommendations": "Конкретный совет.",
             "url": "URL ИЗ real_changes"
         }
     ],
-    "upcoming_changes": [
-        {"title": "Законопроект", "expected_date": "2026 Q3", "description": "Что планируется и на какой стадии", "url": ""}
-    ],
-    "sources": [{"title": "Источник", "url": "URL"}],
-    "total_changes": 5
+    "upcoming_changes": [{"title": "Что на подходе", "expected_date": "Срок", "description": "Суть"}],
+    "sources": [{"title": "Источник", "url": "URL", "date": "Дата"}],
+    "total_changes": 0
 }"""
 
-        user_prompt = "ПРОВЕДИ ГЛУБОКИЙ МОНИТОРИНГ ЗАКОНОДАТЕЛЬСТВА РФ.\n"
-        if topic:
-            user_prompt += f"ФОКУС НА ТЕМУ: {topic}\n"
-            
+        user_prompt = "ПРОВЕДИ МОНИТОРИНГ ЗАКОНОДАТЕЛЬСТВА РФ.\n"
+        if topic: user_prompt += f"ФОКУС: {topic}\n"
         if real_changes:
-            user_prompt += "\nРЕАЛЬНЫЕ НОВОСТИ ИЗМЕНЕНИЙ (база для анализа):\n"
+            user_prompt += "\nСПИСОК РЕАЛЬНЫХ ИЗМЕНЕНИЙ:\n"
             for i, change in enumerate(real_changes):
-                user_prompt += f"{i+1}. {change.get('title')} ({change.get('url')})\nОписание: {change.get('description')}\n\n"
+                user_prompt += f"НОВОСТЬ {i+1}: {change.get('title')} ({change.get('url')}) | ДАТА: {change.get('date')}\nОПИСАНИЕ: {change.get('description')}\n\n"
 
-        user_prompt += "\n\nВерни СТРОГО JSON. Ответ должен быть максимально подробным и профессиональным."
+        return await self.generate_json(system_prompt=system_prompt, user_prompt=user_prompt, temperature=0.1, max_tokens=4000)
 
-        return await self.generate_json(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=4000,
-        )
-
-
-# Singleton instance
 ai_service = AIService()

@@ -69,8 +69,10 @@ class UsageLimitService:
             else:
                 p_enum = plan
         except ValueError:
-            # Если пришел enterprise или vip, мапим на business
-            if plan.lower() in ('enterprise', 'vip'):
+            # Мапим альтернативные названия если придут
+            if plan.lower() in ('enterprise', 'корпоративный'):
+                p_enum = SubscriptionPlan.ENTERPRISE
+            elif plan.lower() == 'business':
                 p_enum = SubscriptionPlan.BUSINESS
             else:
                 p_enum = SubscriptionPlan.FREE

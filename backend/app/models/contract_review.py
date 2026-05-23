@@ -16,6 +16,7 @@ class ContractReview(Base):
     file_path = Column(String(1000), nullable=False)
     extracted_text = Column(Text)
     analysis_result = Column(Text)  # JSON as text for SQLite
+    score = Column(Integer, default=100) # Risk score 0-100
     risk_level = Column(String(20), default="low")
     risks = Column(Text)  # JSON as text
     recommendations = Column(Text)  # JSON as text

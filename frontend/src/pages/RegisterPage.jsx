@@ -149,7 +149,7 @@ export function RegisterPage() {
                   locale="ru"
                   shape="pill"
                   size="large"
-                  width="100%"
+                  width="350"
                 />
               </div>
               <p className="text-[10px] text-center text-white/30 mb-6">

@@ -172,4 +172,20 @@ export const paymentsAPI = {
   },
 }
 
+// API Keys
+export const apiKeysAPI = {
+  list: async () => {
+    const response = await api.get('/api-keys')
+    return response.data
+  },
+  create: async (name) => {
+    const response = await api.post('/api-keys', null, { params: { name } })
+    return response.data
+  },
+  delete: async (id) => {
+    const response = await api.delete(`/api-keys/${id}`)
+    return response.data
+  }
+}
+
 export default api

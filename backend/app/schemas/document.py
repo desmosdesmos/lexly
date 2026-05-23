@@ -8,6 +8,9 @@ class DocumentType(str, enum.Enum):
     CLAIM = "claim"
     COMPLAINT = "complaint"
     DEMAND = "demand"
+    CONTRACT_SALE = "contract_sale"
+    CONTRACT_EMPLOYMENT = "contract_employment"
+    POWER_OF_ATTORNEY = "power_of_attorney"
 
 
 class DocumentStatus(str, enum.Enum):
@@ -47,4 +50,3 @@ class DocumentListResponse(BaseModel):
     total: int
     page: int
     limit: int
-

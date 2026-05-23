@@ -135,7 +135,7 @@ export function AIFieldHelper({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             rows={rows}
-            className="glass-input w-full resize-y pr-10"
+            className="input-field w-full resize-y pr-10"
           />
         ) : (
           <input
@@ -143,7 +143,7 @@ export function AIFieldHelper({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="glass-input w-full pr-10"
+            className="input-field w-full pr-10"
           />
         )}
 

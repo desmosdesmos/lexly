@@ -115,31 +115,38 @@ async def get_support_messages(
 @router.post("/telegram-webhook")
 async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Принимает ответы от админа из Телеграма (включая фото)."""
-    data = await request.json()
-    message = data.get("message")
-    if not message:
-        return {"ok": True}
-
-    reply_to = message.get("reply_to_message")
-    if not reply_to:
-        return {"ok": True}
-
-    original_text = reply_to.get("text") or reply_to.get("caption") or ""
-    if "🆔" not in original_text:
-        return {"ok": True}
-
     try:
+        data = await request.json()
+        # logger.info(f"Received telegram webhook data: {data}")
+        message = data.get("message")
+        if not message:
+            return {"ok": True}
+
+        reply_to = message.get("reply_to_message")
+        if not reply_to:
+            print("Telegram message is not a reply")
+            return {"ok": True}
+
+        original_text = reply_to.get("text") or reply_to.get("caption") or ""
+        if "🆔" not in original_text:
+            print(f"Telegram reply doesn't contain ID emoji. Text: {original_text[:50]}...")
+            return {"ok": True}
+
         import re
         user_ids = re.findall(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', original_text)
         if not user_ids:
+            print(f"User ID not found in text: {original_text[:100]}...")
             return {"ok": True}
         
         target_user_id = user_ids[0]
         reply_text = message.get("text") or message.get("caption")
         
+        print(f"Processing support reply for user {target_user_id}")
+        
         image_url = None
         # Если прислали фото в ответ
         if "photo" in message:
+            print("Processing photo in telegram reply")
             photo_list = message.get("photo")
             # Берем самое большое разрешение
             file_id = photo_list[-1]["file_id"]
@@ -170,10 +177,13 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         )
         db.add(new_reply)
         await db.commit()
+        print(f"Successfully saved support message for user {target_user_id}")
         
         return {"ok": True}
     except Exception as e:
-        print(f"Error in telegram webhook: {e}")
+        print(f"Error in telegram webhook: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return {"ok": True}
 
 @router.post("/setup-webhook")

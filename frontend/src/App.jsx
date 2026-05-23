@@ -14,6 +14,9 @@ import { CaseLaw } from './pages/CaseLaw'
 import { LawMonitoring } from './pages/LawMonitoring'
 import { Profile } from './pages/Profile'
 import { SubscriptionPage } from './pages/SubscriptionPage'
+import { DeveloperPage } from './pages/DeveloperPage'
+import { Drive } from './pages/Drive'
+import { AdminPanel } from './pages/AdminPanel'
 import { PrivacyPolicy } from './pages/PrivacyPolicy'
 import { TermsOfService } from './pages/TermsOfService'
 import { NotFound } from './pages/NotFound'
@@ -56,6 +59,9 @@ function App() {
           <Route path="monitoring" element={<LawMonitoring />} />
           <Route path="profile" element={<Profile />} />
           <Route path="subscription" element={<SubscriptionPage />} />
+          <Route path="developer" element={<DeveloperPage />} />
+          <Route path="drive" element={<Drive />} />
+          <Route path="admin" element={<AdminPanel />} />
         </Route>
 
         {/* 404 */}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from typing import Optional
+from sqlalchemy import select, func, desc
+from typing import Optional, List
 from datetime import date
 from pydantic import BaseModel
 
@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.subscription import Subscription, SubscriptionPlan
 from app.services.limit_service import limit_service
 from app.models.request_log import RequestLog
+from app.models.notification import Notification
 from app.schemas.user import UserResponse, UserUpdate
 from app.schemas.usage import UsageResponse, UsageLimitItem
 from app.services.auth_service import hash_password, verify_password
@@ -158,6 +159,42 @@ async def get_history(
         "page": page,
         "limit": limit,
     }
+
+
+@router.get("/notifications", summary="Получить уведомления пользователя")
+async def get_notifications(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Notification)
+        .where(Notification.user_id == current_user.id)
+        .where(Notification.is_read == False)
+        .order_by(desc(Notification.created_at))
+    )
+    notifications = result.scalars().all()
+    return notifications
+
+
+@router.post("/notifications/{notification_id}/read", summary="Отметить уведомление как прочитанное")
+async def mark_notification_read(
+    notification_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Notification)
+        .where(Notification.id == notification_id)
+        .where(Notification.user_id == current_user.id)
+    )
+    notification = result.scalar_one_or_none()
+    
+    if not notification:
+        raise HTTPException(status_code=404, detail="Уведомление не найдено")
+    
+    notification.is_read = True
+    await db.commit()
+    return {"status": "ok"}
 
 
 # ========== Смена пароля ==========

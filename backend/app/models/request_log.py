@@ -1,6 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID, JSON
+from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, JSON
 from sqlalchemy.sql import func
 import uuid
 
@@ -10,8 +9,8 @@ from app.database import Base
 class RequestLog(Base):
     __tablename__ = "request_logs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), index=True)
     endpoint = Column(String(500), nullable=False)
     http_method = Column(String(10), nullable=False)
     request_data = Column(String)  # JSON as string for SQLite compatibility

@@ -26,9 +26,9 @@ class LimitService:
             usage = UsageLimit(
                 id=str(uuid.uuid4()),
                 user_id=user_id,
-                plan_type=SubscriptionPlan.FREE,
+                plan_type=SubscriptionPlan.FREE.value,
                 max_documents=2,
-                max_contracts=1,
+                max_contracts=2,
                 documents_generated=0,
                 contracts_reviewed=0,
                 ai_requests_today=0,
@@ -43,23 +43,19 @@ class LimitService:
     @staticmethod
     async def _get_user_plan(user_id: str, db: AsyncSession) -> SubscriptionPlan:
         """Получить тариф пользователя."""
-        result = await db.execute(select(User).where(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if not user:
-            return SubscriptionPlan.FREE
-
-        # Проверить подписку
         from app.models.subscription import Subscription
         result = await db.execute(
             select(Subscription).where(Subscription.user_id == user_id)
         )
         sub = result.scalar_one_or_none()
         if sub:
-            p = sub.plan_type.lower()
-            if p in ('business', 'enterprise', 'vip'):
-                return SubscriptionPlan.BUSINESS
-            if p == 'pro':
-                return SubscriptionPlan.PRO
+            try:
+                # Мапим типы тарифов на наш SubscriptionPlan enum
+                p = sub.plan_type.lower()
+                return SubscriptionPlan(p)
+            except ValueError:
+                # Если вдруг в БД старое значение типа 'basic'
+                return SubscriptionPlan.FREE
         
         return SubscriptionPlan.FREE
 
@@ -127,6 +123,30 @@ class LimitService:
         return True, {"max": max_ai, "used": usage.ai_requests_today, "remaining": max_ai - usage.ai_requests_today, "plan": plan.value}
 
     @staticmethod
+    async def check_court_practice_limit(user_id: str, db: AsyncSession) -> tuple[bool, dict]:
+        usage = await LimitService._get_or_create_limits(user_id, db)
+        plan = await LimitService._get_user_plan(user_id, db)
+        limits = get_plan_limit(plan)
+        await LimitService._reset_daily_if_needed(usage)
+        max_limit = limits['court_practice_per_day']
+        if max_limit == -1: return True, {"max": -1, "used": usage.court_practice_today, "remaining": -1}
+        if usage.court_practice_today >= max_limit:
+            return False, {"max": max_limit, "used": usage.court_practice_today, "remaining": 0, "plan": plan.value, "upgrade_required": True}
+        return True, {"max": max_limit, "used": usage.court_practice_today, "remaining": max_limit - usage.court_practice_today, "plan": plan.value}
+
+    @staticmethod
+    async def check_law_monitoring_limit(user_id: str, db: AsyncSession) -> tuple[bool, dict]:
+        usage = await LimitService._get_or_create_limits(user_id, db)
+        plan = await LimitService._get_user_plan(user_id, db)
+        limits = get_plan_limit(plan)
+        await LimitService._reset_daily_if_needed(usage)
+        max_limit = limits['law_monitoring_per_day']
+        if max_limit == -1: return True, {"max": -1, "used": usage.law_monitoring_today, "remaining": -1}
+        if usage.law_monitoring_today >= max_limit:
+            return False, {"max": max_limit, "used": usage.law_monitoring_today, "remaining": 0, "plan": plan.value, "upgrade_required": True}
+        return True, {"max": max_limit, "used": usage.law_monitoring_today, "remaining": max_limit - usage.law_monitoring_today, "plan": plan.value}
+
+    @staticmethod
     async def increment_documents(user_id: str, db: AsyncSession):
         usage = await LimitService._get_or_create_limits(user_id, db)
         usage.documents_generated += 1
@@ -172,7 +192,8 @@ class LimitService:
             "plan_name": {
                 "free": "Бесплатный", 
                 "pro": "Pro", 
-                "business": "Бизнес"
+                "business": "Бизнес",
+                "enterprise": "Корпоративный"
             }.get(plan.value, "Бесплатный"),
             "documents": {
                 "used": usage.documents_generated,

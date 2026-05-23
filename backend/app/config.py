@@ -60,7 +60,7 @@ class Settings(BaseSettings):
 
     # JWT
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 30  # 30 дней
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # Stripe
@@ -85,7 +85,11 @@ class Settings(BaseSettings):
     # YooKassa
     YOOKASSA_SHOP_ID: str = "1360639"
     YOOKASSA_SECRET_KEY: str = ""
-    YOOKASSA_RETURN_URL: str = "http://localhost:5173/dashboard/profile"
+    YOOKASSA_RETURN_URL: str = "https://laxlylaw.ru/dashboard/profile"
+
+    # Admin
+    ADMIN_EMAILS: List[str] = ["yan.pashhenko6486@gmail.com", "desmosymail@gmail.com"]
+
 
     # Email (для восстановления пароля и уведомлений)
     SMTP_HOST: str = "smtp.gmail.com"
