@@ -33,8 +33,8 @@ export function SupportChat() {
     if (!user) return
     try {
       const response = await api.get('/support/messages')
-      // Important: Axios might return data directly or wrapped
-      const data = response?.data !== undefined ? response.data : response
+      // Axios response.data is where the body lives
+      const data = response.data
       
       if (Array.isArray(data)) {
         setMessages(data)
@@ -48,7 +48,8 @@ export function SupportChat() {
         toast.error(`Не удалось загрузить сообщения: ${errorMsg}`)
       }
     } finally {
-      if (!silent) setInitialLoading(false)
+      // Always stop initial loading after the very first call
+      setInitialLoading(false)
     }
   }
 
