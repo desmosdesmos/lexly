@@ -33,27 +33,30 @@ export function SupportChat() {
     if (!user) return
     try {
       const response = await api.get('/support/messages')
-      // Axios response structure: response.data is the actual payload
       const data = response?.data || response
       setMessages(Array.isArray(data) ? data : [])
     } catch (error) {
-      console.error('Failed to load support messages:', error)
-      if (!silent) toast.error('Не удалось загрузить сообщения')
+      if (!silent) {
+        console.error('Failed to load support messages:', error)
+        toast.error('Не удалось загрузить сообщения')
+      }
     } finally {
       if (!silent) setInitialLoading(false)
     }
   }
 
+  // Poll always when logged in, but faster when open
   useEffect(() => {
-    if (user && isOpen && !isMinimized) {
-      loadMessages()
+    if (user) {
+      loadMessages(initialLoading)
       const interval = setInterval(() => {
         loadMessages(true)
-      }, 4000) // Slightly longer interval
-      pollingRef.current = interval
+      }, isOpen && !isMinimized ? 4000 : 15000) // 4s if open, 15s if closed
       return () => clearInterval(interval)
     }
   }, [user, isOpen, isMinimized])
+
+  const unreadCount = messages.filter(m => m.sender === 'support' && !m.is_read).length
 
   useEffect(() => {
     if (isOpen && !isMinimized && messages.length > 0) {
@@ -301,10 +304,14 @@ export function SupportChat() {
             <MessageCircle className="w-7 h-7 sm:w-8 sm:h-8 group-hover:scale-110 transition-transform duration-500" />
             
             {/* Notification badge */}
-            <div className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF3B30] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-4 w-4 bg-[#FF3B30] border-2 border-white/10"></span>
-            </div>
+            {unreadCount > 0 && (
+              <div className="absolute -top-0.5 -right-0.5 flex h-5 w-5 items-center justify-center">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF3B30] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-5 w-5 bg-[#FF3B30] border-2 border-white/10 flex items-center justify-center text-[9px] font-black text-white">
+                  {unreadCount}
+                </span>
+              </div>
+            )}
           </div>
           
           {/* Label on Hover */}

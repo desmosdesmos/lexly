@@ -1,6 +1,7 @@
+import logging
 from fastapi import APIRouter, Depends, Body, Request, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 import uuid
 import httpx
 import os
@@ -15,6 +16,7 @@ from app.services.telegram_notifier import telegram_notifier
 from app.config import settings
 
 router = APIRouter(prefix="/support", tags=["Support"])
+logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = "uploads/support"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -76,18 +78,22 @@ async def send_support_message(
         f"📝 <b>Сообщение:</b>\n{message or '[Фото]'}"
     )
     
-    if image_url:
-        # Отправляем как фото
-        full_image_path = os.path.abspath(os.path.join(UPLOAD_DIR, os.path.basename(image_url)))
-        async with httpx.AsyncClient() as client:
-            with open(full_image_path, 'rb') as f:
-                await client.post(
-                    f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto",
-                    data={"chat_id": settings.TELEGRAM_ADMIN_CHAT_ID, "caption": caption, "parse_mode": "HTML"},
-                    files={"photo": f}
-                )
-    else:
-        await telegram_notifier.send_message(caption)
+    try:
+        if image_url:
+            # Отправляем как фото
+            full_image_path = os.path.abspath(os.path.join(UPLOAD_DIR, os.path.basename(image_url)))
+            async with httpx.AsyncClient() as client:
+                with open(full_image_path, 'rb') as f:
+                    await client.post(
+                        f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendPhoto",
+                        data={"chat_id": settings.TELEGRAM_ADMIN_CHAT_ID, "caption": caption, "parse_mode": "HTML"},
+                        files={"photo": f},
+                        timeout=10.0
+                    )
+        else:
+            await telegram_notifier.send_message(caption)
+    except Exception as e:
+        logger.error(f"Failed to send telegram notification: {e}")
     
     return {"status": "ok", "message": "Сообщение отправлено"}
 
@@ -103,6 +109,15 @@ async def get_support_messages(
         .order_by(SupportMessage.created_at.asc())
     )
     messages = result.scalars().all()
+    
+    # Помечаем сообщения как прочитанные при получении истории (если открыт чат)
+    await db.execute(
+        update(SupportMessage)
+        .where(SupportMessage.user_id == current_user.id, SupportMessage.sender == "support", SupportMessage.is_read == False)
+        .values(is_read=True)
+    )
+    await db.commit()
+
     return [{
         "id": m.id,
         "text": m.text,
@@ -117,47 +132,44 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
     """Принимает ответы от админа из Телеграма (включая фото)."""
     try:
         data = await request.json()
-        # logger.info(f"Received telegram webhook data: {data}")
         message = data.get("message")
         if not message:
             return {"ok": True}
 
         reply_to = message.get("reply_to_message")
         if not reply_to:
-            print("Telegram message is not a reply")
+            logger.warning("Telegram message is not a reply")
             return {"ok": True}
 
         original_text = reply_to.get("text") or reply_to.get("caption") or ""
-        if "🆔" not in original_text:
-            print(f"Telegram reply doesn't contain ID emoji. Text: {original_text[:50]}...")
-            return {"ok": True}
-
+        
         import re
         user_ids = re.findall(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', original_text)
+        
         if not user_ids:
-            print(f"User ID not found in text: {original_text[:100]}...")
+            logger.warning(f"User ID not found in reply-to text: {original_text[:100]}...")
             return {"ok": True}
         
         target_user_id = user_ids[0]
         reply_text = message.get("text") or message.get("caption")
         
-        print(f"Processing support reply for user {target_user_id}")
+        logger.info(f"Processing support reply for user {target_user_id}")
         
         image_url = None
         # Если прислали фото в ответ
         if "photo" in message:
-            print("Processing photo in telegram reply")
+            logger.info("Processing photo in telegram reply")
             photo_list = message.get("photo")
             # Берем самое большое разрешение
             file_id = photo_list[-1]["file_id"]
             
             async with httpx.AsyncClient() as client:
                 # Получаем путь к файлу
-                file_info = await client.get(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}")
+                file_info = await client.get(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}", timeout=10.0)
                 file_path_tg = file_info.json()["result"]["file_path"]
                 
                 # Скачиваем файл
-                file_content = await client.get(f"https://api.telegram.org/file/bot{settings.TELEGRAM_BOT_TOKEN}/{file_path_tg}")
+                file_content = await client.get(f"https://api.telegram.org/file/bot{settings.TELEGRAM_BOT_TOKEN}/{file_path_tg}", timeout=20.0)
                 
                 file_name = f"admin_{uuid.uuid4()}.jpg"
                 local_path = os.path.join(UPLOAD_DIR, file_name)
@@ -177,13 +189,35 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         )
         db.add(new_reply)
         await db.commit()
-        print(f"Successfully saved support message for user {target_user_id}")
+        logger.info(f"Successfully saved support message for user {target_user_id}")
         
+        # Отправляем подтверждение админу, чтобы он мог продолжить диалог, отвечая на это сообщение
+        try:
+            # Получаем инфо о пользователе для подтверждения
+            from app.models.user import User
+            user_result = await db.execute(select(User).where(User.id == target_user_id))
+            target_user = user_result.scalar_one_or_none()
+            user_name = target_user.full_name if target_user else "Неизвестный"
+            
+            confirmation_text = f"✅ <b>Ответ отправлен!</b>\n👤 Пользователь: <b>{user_name}</b>\n🆔 <code>{target_user_id}</code>\n\nВы можете ответить на это сообщение, чтобы продолжить диалог."
+            
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": message["chat"]["id"],
+                        "text": confirmation_text,
+                        "parse_mode": "HTML",
+                        "reply_to_message_id": message["message_id"]
+                    },
+                    timeout=5.0
+                )
+        except Exception as e:
+            logger.error(f"Failed to send confirmation to admin: {e}")
+
         return {"ok": True}
     except Exception as e:
-        print(f"Error in telegram webhook: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error in telegram webhook: {str(e)}", exc_info=True)
         return {"ok": True}
 
 @router.post("/setup-webhook")
