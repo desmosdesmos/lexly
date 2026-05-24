@@ -45,15 +45,11 @@ class TelegramNotifier:
 
     async def send_message(self, text: str, parse_mode: str = "HTML") -> bool:
         """Отправить сообщение админу."""
-        # Быстрая проверка: если уже было поражение - сразу выходим
-        if self._connection_failed:
-            return False
-        
         if not self.enabled or not self.admin_chat_id:
             return False
 
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
                     f"{self.base_url}/sendMessage",
                     json={
@@ -66,11 +62,12 @@ class TelegramNotifier:
                 if response.status_code == 200:
                     data = response.json()
                     return bool(data.get("ok"))
+                
+                logger.error(f"Telegram API error: {response.status_code} - {response.text}")
                 return False
                     
-        except Exception:
-            # Отмечаем что соединение не работает чтобы не тратить время
-            self._connection_failed = True
+        except Exception as e:
+            logger.error(f"Failed to send Telegram message: {e}")
             return False
 
     async def notify_login(self, user_email: str, user_name: str, ip: str = "unknown"):

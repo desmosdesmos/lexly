@@ -15,7 +15,27 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false)
   const [sending, setSending] = useState(false)
   const [step, setStep] = useState(emailFromUrl ? 'code' : 'email')
-  const [sent, setSent] = useState(!!emailFromUrl)
+  const [sent, setSent] = useState(false) // Start as false to trigger initial send
+
+  // Auto-send code if coming from login page
+  useEffect(() => {
+    if (emailFromUrl && !sent) {
+      const autoSend = async () => {
+        setSending(true)
+        try {
+          await authAPI.sendVerificationCode(emailFromUrl)
+          setSent(true)
+          toast.success('Код подтверждения отправлен на email')
+        } catch (err) {
+          console.error('Auto-send failed:', err)
+          // Don't toast error here to avoid double toast if they just registered
+        } finally {
+          setSending(false)
+        }
+      }
+      autoSend()
+    }
+  }, [emailFromUrl])
 
   const handleSendCode = async (e) => {
     e.preventDefault()
