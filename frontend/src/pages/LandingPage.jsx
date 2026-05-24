@@ -101,8 +101,8 @@ export function LandingPage() {
              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60">Новое поколение юридической помощи</span>
           </div>
           
-          <h1 className="text-5xl sm:text-8xl font-black text-white tracking-tighter uppercase italic leading-[1.1] sm:leading-none">
-             Ваш персональный <br className="hidden sm:block" />
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white tracking-tighter uppercase italic leading-[1.1] sm:leading-none break-words px-2">
+             Ваш <br className="block sm:hidden" /> персональный <br />
              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D2FF] via-[#0A84FF] to-[#7000FF]">
                 AI Юрист.
              </span>
