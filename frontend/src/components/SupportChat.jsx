@@ -33,12 +33,19 @@ export function SupportChat() {
     if (!user) return
     try {
       const response = await api.get('/support/messages')
-      const data = response?.data || response
-      setMessages(Array.isArray(data) ? data : [])
+      // Important: Axios might return data directly or wrapped
+      const data = response?.data !== undefined ? response.data : response
+      
+      if (Array.isArray(data)) {
+        setMessages(data)
+      } else {
+        console.error('Support messages data is not an array:', data)
+      }
     } catch (error) {
       if (!silent) {
         console.error('Failed to load support messages:', error)
-        toast.error('Не удалось загрузить сообщения')
+        const errorMsg = error.response?.data?.detail || error.message || 'Ошибка загрузки'
+        toast.error(`Не удалось загрузить сообщения: ${errorMsg}`)
       }
     } finally {
       if (!silent) setInitialLoading(false)
