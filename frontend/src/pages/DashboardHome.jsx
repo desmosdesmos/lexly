@@ -146,10 +146,13 @@ export function DashboardHome() {
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs sm:text-sm text-white/50">Тариф</span>
               </div>
-              <div className="text-base sm:text-lg font-black uppercase text-[#0A84FF] italic tracking-widest">
-                {getPlanLabel(usage.plan)}
+              <div className="flex items-center gap-2 mt-1">
+                <Zap className="w-3.5 h-3.5 text-[#0A84FF]/60 flex-shrink-0" />
+                <span className="text-base sm:text-lg font-semibold text-white tracking-tight">
+                  {getPlanLabel(usage.plan)}
+                </span>
               </div>
-              <Link to="/dashboard/subscription" className="text-[10px] sm:text-xs text-white/30 hover:text-[#0A84FF] mt-2 inline-flex items-center gap-1 font-bold transition-colors text-white">
+              <Link to="/dashboard/subscription" className="text-[10px] sm:text-xs text-white/30 hover:text-[#0A84FF] mt-2 inline-flex items-center gap-1 transition-colors">
                 Управление подпиской <ChevronRight className="w-3 h-3" />
               </Link>
             </CardBody>
