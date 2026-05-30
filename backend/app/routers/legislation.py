@@ -10,7 +10,7 @@ from app.models.user import User
 from app.middleware.auth import get_current_user
 from app.services.ai_service import ai_service
 from app.services.limit_service import limit_service
-from app.services.garant_service import garant_parser
+from app.services.pravo_service import pravo_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +32,16 @@ async def monitor_legislation(
 ):
     """
     Получить анализ последних изменений в законодательстве РФ.
-    
-    AI предоставит:
-    - Список последних изменений
-    - Даты вступления в силу
-    - Влияние на граждан/бизнес
-    - Рекомендации
-    - Предстоящие изменения
-    
-    Можно указать тему для фокусировки (например: "трудовое право", "налогообложение").
-    
+
+    Данные берутся из официальных источников:
+    - publication.pravo.gov.ru (федеральный портал правовой информации)
+    - kremlin.ru (указы, федеральные законы)
+    - government.ru (постановления правительства)
+    - duma.gov.ru (законопроекты)
+    - cbr.ru, nalog.gov.ru, mintrud.gov.ru и др.
+
     Требует авторизации.
     """
-    # Проверка лимитов
     can_use, limit_info = await limit_service.check_law_monitoring_limit(
         user_id=current_user.id,
         db=db,
@@ -61,20 +58,24 @@ async def monitor_legislation(
         )
 
     try:
-        # Сначала получаем реальные изменения для базы (grounding)
+        # Получаем реальные данные из официальных источников
         if request.topic:
-            # Если есть тема, ищем конкретно по ней
-            real_changes = await garant_parser.search_law_changes(query=request.topic, limit=20)
+            real_changes = await pravo_service.search_laws(query=request.topic, limit=25)
+            if len(real_changes) < 3:
+                # Если по теме мало — добавляем последние НПА
+                latest = await pravo_service.get_latest_laws(limit=15)
+                real_changes = real_changes + latest
         else:
-            # Если темы нет, берем общие последние изменения
-            real_changes = await garant_parser.get_latest_changes(limit=30)
+            real_changes = await pravo_service.get_latest_laws(limit=30, days_back=60)
 
+        logger.info(f"Fetched {len(real_changes)} law documents from official sources")
+
+        # AI анализирует реальные данные
         analysis = await ai_service.monitor_legislation(
             topic=request.topic,
-            real_changes=real_changes[:15] # Передаем топ-15 для контекста (было 5)
+            real_changes=real_changes[:20],
         )
 
-        # Инкремент
         await limit_service.increment_law_monitoring(current_user.id, db)
 
         return {
@@ -83,10 +84,20 @@ async def monitor_legislation(
             "summary": analysis.get("summary", ""),
             "changes": analysis.get("changes", []),
             "upcoming_changes": analysis.get("upcoming_changes", []),
-            "total_changes": analysis.get("total_changes", 0),
-            "grounding_sources": real_changes[:5]
+            "total_changes": analysis.get("total_changes", len(analysis.get("changes", []))),
+            "grounding_sources": [
+                {
+                    "title": ch.get("title", "")[:80],
+                    "url": ch.get("url", ""),
+                    "date": ch.get("date", ""),
+                    "source": ch.get("source", ""),
+                }
+                for ch in real_changes[:8]
+                if ch.get("url")
+            ],
+            "sources_count": len(real_changes),
         }
-        
+
     except Exception as e:
         logger.error(f"Error monitoring legislation: {str(e)}")
         raise HTTPException(
@@ -96,51 +107,8 @@ async def monitor_legislation(
 
 
 @router.get(
-    "/garant-review",
-    summary="Ежедневный обзор изменений с Garant.ru",
-)
-async def get_garant_review(
-    date: Optional[str] = Query(None, description="Дата обзора в формате YYYY-MM-DD"),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Получить ежедневный обзор изменений законодательства с garant.ru.
-    
-    Если дата не указана, возвращается обзор за сегодня.
-    Данные берутся напрямую с garant.ru/subscribe/fed/
-    
-    Требует авторизации.
-    """
-    try:
-        review = await garant_parser.get_legislation_review(date)
-        
-        if not review:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Обзор не найден. Попробуйте другую дату.",
-            )
-        
-        return {
-            "date": review.get("date", ""),
-            "url": review.get("url", ""),
-            "total": review.get("total", 0),
-            "changes": review.get("changes", []),
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting Garant review: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка получения обзора: {str(e)}",
-        )
-
-
-@router.get(
     "/search",
-    summary="Поиск изменений по ключевому слову",
+    summary="Поиск НПА по ключевому слову",
 )
 async def search_legislation(
     query: str = Query(..., description="Поисковый запрос", min_length=1),
@@ -149,13 +117,13 @@ async def search_legislation(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Поиск изменений законодательства по ключевому слову.
+    Поиск НПА по ключевому слову.
 
-    Данные берутся с garant.ru
+    Данные из официального портала pravo.gov.ru и RSS официальных органов.
+    Возвращает реальные документы с реальными URL.
 
     Требует авторизации.
     """
-    # Проверка лимитов
     can_use, _ = await limit_service.check_law_monitoring_limit(
         user_id=current_user.id,
         db=db,
@@ -167,25 +135,12 @@ async def search_legislation(
         )
 
     try:
-        # Пытаемся получить больше новостей для поиска
-        changes = await garant_parser.get_latest_changes(limit=100)
+        results = await pravo_service.search_laws(query=query, limit=limit)
 
-        # Фильтрация по ключевому слову (мягкая - ищем частичное совпадение)
-        query_lower = query.lower()
-        filtered = [
-            change for change in changes
-            if query_lower in change.get("title", "").lower()
-            or query_lower in change.get("description", "").lower()
-            or query_lower in change.get("number", "").lower()
-        ]
-
-        # Если ничего не найдено - возвращаем пустой список, а не случайные новости
-        # Это честнее по отношению к пользователю
         return {
             "query": query,
-            "total": len(filtered),
-            "changes": filtered[:limit],
-            "is_fallback": False
+            "total": len(results),
+            "changes": results,
         }
 
     except Exception as e:
@@ -194,3 +149,51 @@ async def search_legislation(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка поиска: {str(e)}",
         )
+
+
+@router.get(
+    "/latest",
+    summary="Последние НПА из официальных источников",
+)
+async def get_latest_laws(
+    days: int = Query(30, ge=1, le=365, description="За сколько дней"),
+    limit: int = Query(20, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получить последние НПА без AI-анализа — чистые данные из официальных источников.
+    """
+    try:
+        results = await pravo_service.get_latest_laws(limit=limit, days_back=days)
+        return {
+            "total": len(results),
+            "days_back": days,
+            "items": results,
+        }
+    except Exception as e:
+        logger.error(f"Error fetching latest laws: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/garant-review",
+    summary="Обзор (совместимость)",
+    deprecated=True,
+)
+async def get_garant_review(
+    date: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Устаревший endpoint — теперь использует pravo.gov.ru."""
+    try:
+        changes = await pravo_service.get_latest_laws(limit=20)
+        return {
+            "date": date or datetime.now().strftime("%Y-%m-%d"),
+            "url": "http://publication.pravo.gov.ru",
+            "total": len(changes),
+            "changes": changes,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

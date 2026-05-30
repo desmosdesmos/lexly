@@ -330,87 +330,186 @@ class AIService:
             max_tokens=8192,
         )
 
-    async def analyze_court_practice(self, topic: str, additional_context: Optional[str] = None, real_cases: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    async def analyze_court_practice(
+        self,
+        topic: str,
+        additional_context: Optional[str] = None,
+        real_cases: Optional[List[Dict[str, Any]]] = None,
+        no_real_cases: bool = False,
+        search_url: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Профессиональный экспертный анализ судебной практики с опорой на факты."""
-        system_prompt = """Ты — ГЛАВНЫЙ АНАЛИТИК ПРАКТИКИ ВС РФ. 
-Твоя задача: предоставить БЕЗУПРЕЧНЫЙ по точности анализ судебной практики.
+        from datetime import datetime
+        today = datetime.now().strftime("%d.%m.%Y")
 
-КРИТИЧЕСКИЕ ТРЕБОВАНИЯ К ИСТОЧНИКАМ (GROUNDING):
-1. ПРИОРИТЕТ ДАТ: Используй только самые свежие дела (2024-2026). Если в списке есть старые дела, помечай это.
-2. ВЕРИФИКАЦИЯ ССЫЛОК: Используй ТОЛЬКО предоставленные URL. Запрещено выдумывать ссылки.
-3. ПРАВОВАЯ ЛОГИКА: Объясняй, почему суды принимают те или иные решения.
-4. ОТСЕИВАНИЕ МУСОРА: Если источник не содержит конкретики по теме, игнорируй его.
+        system_prompt = f"""Ты — ГЛАВНЫЙ АНАЛИТИК СУДЕБНОЙ ПРАКТИКИ РФ (эксперт высшей категории).
+Сегодняшняя дата: {today}.
 
-ФОРМАТ JSON:
-{
-    "topic": "Тема",
-    "summary": "Аналитический разбор ситуации на 2026 год (8-10 предложений).",
-    "key_trends": ["Тренд 1 с указанием на актуальную практику", "Тренд 2"],
-    "statute_of_limitations": "Срок и нюансы его исчисления.",
-    "key_arguments": {
-        "plaintiff": ["Аргумент Истца + ссылка на НПА"],
-        "defendant": ["Аргумент Ответчика"]
-    },
-    "typical_outcomes": ["Сценарий с вероятностью %"],
-    "important_precedents": [
-        {
-            "description": "Суть дела",
-            "court": "Суд",
-            "year": "ГГГГ (строго из данных)",
-            "significance": "Почему это важно",
-            "source_url": "URL ИЗ СПИСКА"
-        }
-    ],
-    "success_rate": 70,
-    "risks": ["Материальный риск", "Процессуальный риск"],
-    "sources": [{"title": "Название", "url": "URL", "date": "Дата"}]
-}"""
+╔══════════════════════════════════════════════════════════════════╗
+║        АБСОЛЮТНЫЕ ПРАВИЛА — НАРУШЕНИЕ НЕДОПУСТИМО              ║
+╠══════════════════════════════════════════════════════════════════╣
+║ 1. ЗАПРЕЩЕНО ВЫДУМЫВАТЬ URL.                                    ║
+║    source_url = null если нет реального URL из списка.          ║
+║ 2. ЗАПРЕЩЕНО ВЫДУМЫВАТЬ номера дел, даты, суды.                ║
+║    Если список дел пуст — пиши аналитику на основе закона,     ║
+║    но поле has_real_cases = false.                              ║
+║ 3. ВАЖНЫЕ_ПРЕЦЕДЕНТЫ: включай только из реального списка.      ║
+║    Если список пуст — массив important_precedents = [].        ║
+║ 4. Ссылки на НПА: ст. ГК РФ, ст. ГПК РФ — можно писать       ║
+║    текстом (Статья 15 ГК РФ), но без придуманных URL.          ║
+╚══════════════════════════════════════════════════════════════════╝
 
-        user_prompt = f"ПРОВЕДИ ГЛУБОКИЙ ЭКСПЕРТНЫЙ АНАЛИЗ судебной практики по теме: {topic}\n"
-        if real_cases:
-            user_prompt += "\nБАЗА РЕАЛЬНЫХ ДЕЛ (ОБЯЗАТЕЛЬНО ИСПОЛЬЗУЙ ИМЕННО ЭТИ ДАННЫЕ):\n"
-            for i, case in enumerate(real_cases):
-                user_prompt += f"ДЕЛO {i+1}: {case.get('title')} | ДАТА: {case.get('date')} | ССЫЛКА: {case.get('url')}\nКОНТЕКСТ: {case.get('snippet')}\nМЕТА: {case.get('meta')}\n\n"
-        if additional_context: user_prompt += f"\nКОНТЕКСТ: {additional_context}"
-        
-        return await self.generate_json(system_prompt=system_prompt, user_prompt=user_prompt, temperature=0.1, max_tokens=4000)
+ФОРМАТ СТРОГИЙ JSON (без пояснений вне JSON):
+{{
+  "topic": "Тема анализа",
+  "has_real_cases": true,
+  "summary": "Глубокий аналитический обзор на {today} (10-12 предложений). Опирайся на практику 2023-2026 годов. Цитируй статьи законов.",
+  "key_trends": [
+    "Тренд с ссылкой на статью закона (например: суды руководствуются ст.1064 ГК РФ)",
+    "Тренд 2",
+    "Тренд 3"
+  ],
+  "statute_of_limitations": "Исковая давность: срок, момент начала, особые случаи. Статья закона.",
+  "key_arguments": {{
+    "plaintiff": ["Аргумент со ссылкой на статью НПА", "Аргумент 2"],
+    "defendant": ["Контраргумент 1", "Контраргумент 2"]
+  }},
+  "typical_outcomes": [
+    "Исход 1 — % вероятность — при каких условиях",
+    "Исход 2"
+  ],
+  "important_precedents": [
+    {{
+      "description": "Конкретная суть ТОЛЬКО из предоставленного списка",
+      "court": "Суд из списка",
+      "year": "Год из данных",
+      "significance": "Почему важно",
+      "source_url": "URL ТОЛЬКО из списка или null"
+    }}
+  ],
+  "success_rate": 65,
+  "risks": ["Конкретный риск 1", "Риск 2"],
+  "practical_steps": ["Шаг 1: что сделать прямо сейчас", "Шаг 2"],
+  "relevant_laws": ["Статья X ГК РФ — суть", "Статья Y ГПК РФ — суть"]
+}}"""
 
-    async def monitor_legislation(self, topic: Optional[str] = None, real_changes: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
-        """Экспертный мониторинг законодательства РФ на базе реальных новостей."""
-        system_prompt = """Ты — ВЕДУЩИЙ ЭКСПЕРТ КОНСУЛЬТАНТ+. Твоя задача: подготовить МАКСИМАЛЬНО АКТУАЛЬНЫЙ обзор изменений.
-КРИТИЧЕСКИЕ ПРАВИЛА:
-1. АКТУАЛЬНОСТЬ: Акцент на 2025-2026 годах. 
-2. СТРОГАЯ ПРИВЯЗКА К ФАКТАМ: Используй названия, номера и даты ТОЛЬКО из списка real_changes.
-3. ПРАКТИЧЕСКИЕ ШАГИ: Что делать юристу завтра?
+        user_prompt = f"ТЕМА АНАЛИЗА: {topic}\n"
+        if additional_context:
+            user_prompt += f"ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ: {additional_context}\n"
 
-ФОРМАТ JSON:
-{
-    "report_date": "2026-05-22",
-    "summary": "Анализ вектора изменений (8-10 предложений).",
-    "changes": [
-        {
-            "title": "Название НПА",
-            "law_number": "Номер и дата",
-            "effective_date": "Дата вступления (из источника!)",
-            "description": "Суть: было / стало.",
-            "impact": "Бизнес-эффект.",
-            "impact_level": "high/medium/low",
-            "recommendations": "Конкретный совет.",
-            "url": "URL ИЗ real_changes"
-        }
-    ],
-    "upcoming_changes": [{"title": "Что на подходе", "expected_date": "Срок", "description": "Суть"}],
-    "sources": [{"title": "Источник", "url": "URL", "date": "Дата"}],
-    "total_changes": 0
-}"""
+        if real_cases and len(real_cases) > 0:
+            user_prompt += f"\n--- РЕАЛЬНЫЕ ДЕЛА ИЗ БАЗЫ SUDACT.RU (используй ТОЛЬКО эти данные для прецедентов) ---\n"
+            for i, case in enumerate(real_cases[:10]):
+                user_prompt += (
+                    f"ДЕЛО {i+1}: {case.get('title', '')}\n"
+                    f"  ДАТА: {case.get('date', 'неизвестна')}\n"
+                    f"  СУРАКТ: {case.get('court', '')}\n"
+                    f"  URL: {case.get('url', '')}\n"
+                    f"  КОНТЕКСТ: {case.get('snippet', '')[:300]}\n\n"
+                )
+            user_prompt += "ВАЖНО: source_url берёшь ТОЛЬКО из поля URL выше. Не выдумывай ссылки.\n"
+        else:
+            user_prompt += (
+                "\n⚠️ РЕАЛЬНЫЕ ДЕЛА ИЗ БАЗЫ НЕ ПРЕДОСТАВЛЕНЫ.\n"
+                "Установи has_real_cases = false.\n"
+                "Поле important_precedents = [] (пустой массив).\n"
+                "Дай глубокий анализ на основе законодательства РФ и устоявшейся практики,\n"
+                "без придуманных номеров дел и URL.\n"
+            )
 
-        user_prompt = "ПРОВЕДИ МОНИТОРИНГ ЗАКОНОДАТЕЛЬСТВА РФ.\n"
-        if topic: user_prompt += f"ФОКУС: {topic}\n"
-        if real_changes:
-            user_prompt += "\nСПИСОК РЕАЛЬНЫХ ИЗМЕНЕНИЙ:\n"
-            for i, change in enumerate(real_changes):
-                user_prompt += f"НОВОСТЬ {i+1}: {change.get('title')} ({change.get('url')}) | ДАТА: {change.get('date')}\nОПИСАНИЕ: {change.get('description')}\n\n"
+        return await self.generate_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.1,
+            max_tokens=4000,
+        )
 
-        return await self.generate_json(system_prompt=system_prompt, user_prompt=user_prompt, temperature=0.1, max_tokens=4000)
+    async def monitor_legislation(
+        self,
+        topic: Optional[str] = None,
+        real_changes: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
+        """Экспертный мониторинг законодательства РФ на базе реальных данных официальных источников."""
+        from datetime import datetime
+        today = datetime.now().strftime("%d.%m.%Y")
+        today_iso = datetime.now().strftime("%Y-%m-%d")
+
+        system_prompt = f"""Ты — ВЕДУЩИЙ ЭКСПЕРТ ПО РОССИЙСКОМУ ЗАКОНОДАТЕЛЬСТВУ.
+Сегодня: {today}. Источники: pravo.gov.ru, kremlin.ru, government.ru, duma.gov.ru.
+
+╔══════════════════════════════════════════════════════════════════╗
+║        АБСОЛЮТНЫЕ ПРАВИЛА — НАРУШЕНИЕ НЕДОПУСТИМО              ║
+╠══════════════════════════════════════════════════════════════════╣
+║ 1. URL в поле "url" — ТОЛЬКО из предоставленного списка.       ║
+║    Если URL нет — ставь null, НИКОГДА не выдумывай ссылки.     ║
+║ 2. Названия НПА, номера и даты — ТОЛЬКО из списка.             ║
+║ 3. Если список пуст — пиши аналитику об общих трендах,         ║
+║    без конкретных выдуманных документов.                        ║
+║ 4. effective_date = дата из источника или null.                 ║
+╚══════════════════════════════════════════════════════════════════╝
+
+ФОРМАТ СТРОГИЙ JSON:
+{{
+  "report_date": "{today_iso}",
+  "summary": "Аналитический обзор изменений (10-12 предложений). Объясняй суть и практическое значение каждого блока изменений. Акцент на 2025-2026.",
+  "changes": [
+    {{
+      "title": "Полное название НПА из списка",
+      "law_number": "Номер и дата (из источника или пусто)",
+      "effective_date": "ДД.ММ.ГГГГ из источника или null",
+      "description": "Суть изменения: что изменилось, как было раньше, как стало.",
+      "impact": "Конкретное влияние на граждан / бизнес / юристов.",
+      "impact_level": "high",
+      "recommendations": "Конкретный практический совет — что нужно сделать и в какой срок.",
+      "url": "URL из списка или null",
+      "source": "pravo.gov.ru",
+      "authority": "Орган, принявший акт"
+    }}
+  ],
+  "upcoming_changes": [
+    {{
+      "title": "Название готовящегося изменения",
+      "expected_date": "Ожидаемая дата",
+      "description": "Суть и последствия",
+      "url": null
+    }}
+  ],
+  "total_changes": 5
+}}"""
+
+        user_prompt = f"ДАТА ОТЧЁТА: {today}\n"
+        user_prompt += "ПРОВЕДИ ДЕТАЛЬНЫЙ МОНИТОРИНГ ЗАКОНОДАТЕЛЬСТВА РФ.\n"
+        if topic:
+            user_prompt += f"ТЕМА/ОТРАСЛЬ: {topic}\n"
+
+        if real_changes and len(real_changes) > 0:
+            user_prompt += f"\n--- РЕАЛЬНЫЕ НПА И НОВОСТИ ИЗ ОФИЦИАЛЬНЫХ ИСТОЧНИКОВ ({len(real_changes)} документов) ---\n"
+            user_prompt += "ИСПОЛЬЗУЙ ТОЛЬКО ЭТИ ДАННЫЕ для полей title, url, date. Не выдумывай.\n\n"
+            for i, change in enumerate(real_changes[:20]):
+                user_prompt += (
+                    f"ДОКУМЕНТ {i+1}:\n"
+                    f"  Название: {change.get('title', '')}\n"
+                    f"  URL: {change.get('url', '') or 'нет'}\n"
+                    f"  Дата: {change.get('date', '')}\n"
+                    f"  Номер: {change.get('number', '') or 'нет'}\n"
+                    f"  Тип: {change.get('doc_type', '') or change.get('type', '')}\n"
+                    f"  Орган: {change.get('authority', '')}\n"
+                    f"  Источник: {change.get('source', '')}\n"
+                    f"  Описание: {change.get('description', '')[:400]}\n\n"
+                )
+        else:
+            user_prompt += (
+                "\n⚠️ Данные из официальных источников временно недоступны.\n"
+                "Дай аналитический обзор актуальных трендов законодательства РФ на основе своих знаний.\n"
+                "В поле changes массив — [] (пустой).\n"
+                "В summary — честно укажи, что список документов временно не загружен.\n"
+            )
+
+        return await self.generate_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.1,
+            max_tokens=4000,
+        )
 
 ai_service = AIService()

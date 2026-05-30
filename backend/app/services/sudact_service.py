@@ -1,213 +1,308 @@
-"""Сервис для парсинга судебной практики с sudact.ru."""
+"""
+Сервис для поиска судебной практики.
+Источники:
+  1. sudact.ru — крупнейшая открытая база судебных решений РФ
+  2. Если sudact недоступен — возвращаем честный флаг no_results=True
+     и НЕ выдумываем ссылки.
+"""
 import httpx
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, quote
+from urllib.parse import urljoin, quote_plus
 
 logger = logging.getLogger(__name__)
 
+SUDACT_BASE = "https://sudact.ru"
 
-class SudactParser:
-    """Парсер сайта sudact.ru для получения судебной практики."""
+# Все эндпоинты поиска на sudact.ru
+SUDACT_ENDPOINTS = [
+    f"{SUDACT_BASE}/arbitr/doc/",    # Арбитражные суды
+    f"{SUDACT_BASE}/regular/doc/",   # Суды общей юрисдикции
+    f"{SUDACT_BASE}/magistrate/doc/", # Мировые судьи
+    f"{SUDACT_BASE}/vsrf/doc/",      # Верховный Суд РФ
+]
 
-    BASE_URL = "https://sudact.ru"
-    # Поиск по всем судам (универсальный вход)
-    SEARCH_URL = f"{BASE_URL}/regular/doc/"
-    ARBITR_URL = f"{BASE_URL}/arbitr/doc/"
+HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.5",
+    "Referer": "https://sudact.ru/",
+    "DNT": "1",
+}
 
-    def __init__(self):
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "ru-RU,ru;q=0.9",
-            "Referer": "https://sudact.ru/",
-        }
+
+class SudactService:
+    """
+    Парсер судебной практики с sudact.ru.
+    При неудаче возвращает no_results=True вместо выдуманных данных.
+    """
 
     async def search_cases(
         self,
         query: str,
         court_type: Optional[str] = None,
-        case_type: Optional[str] = None,
         limit: int = 15,
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """
-        Глубокий поиск судебных дел с расширенными параметрами и валидацией.
+        Поиск судебных дел.
+
+        Returns:
+            {
+                "cases": [...],
+                "no_results": bool,    # True если реальных дел не найдено
+                "search_url": str,     # Прямая ссылка на поиск для пользователя
+                "total_found": int,
+            }
         """
-        params = {
-            "q": query,
-            "sort": "date:desc", # Всегда свежие наверх
+        # Строим URL для поиска (пользователь может кликнуть)
+        search_url = self._build_search_url(query, court_type)
+
+        cases: List[Dict[str, Any]] = []
+        seen_urls: set = set()
+
+        # Определяем какие эндпоинты обходить
+        if court_type == "arbitrazh":
+            endpoints = [f"{SUDACT_BASE}/arbitr/doc/"]
+        elif court_type == "general":
+            endpoints = [f"{SUDACT_BASE}/regular/doc/"]
+        elif court_type == "vsrf":
+            endpoints = [f"{SUDACT_BASE}/vsrf/doc/"]
+        else:
+            endpoints = SUDACT_ENDPOINTS  # Ищем везде
+
+        async with httpx.AsyncClient(
+            timeout=20.0,
+            follow_redirects=True,
+            headers=HTTP_HEADERS,
+        ) as client:
+            for endpoint in endpoints:
+                if len(cases) >= limit:
+                    break
+                try:
+                    results = await self._search_endpoint(client, endpoint, query, limit)
+                    for r in results:
+                        if r["url"] not in seen_urls:
+                            cases.append(r)
+                            seen_urls.add(r["url"])
+                except Exception as e:
+                    logger.warning(f"sudact endpoint {endpoint} error: {e}")
+
+        return {
+            "cases": cases[:limit],
+            "no_results": len(cases) == 0,
+            "search_url": search_url,
+            "total_found": len(cases),
         }
 
-        if case_type:
-            params["case_type"] = case_type
-
-        all_results = []
-        
-        # Определяем по каким разделам искать
-        targets = []
-        if court_type == "arbitrazh":
-            targets = [self.ARBITR_URL]
-        elif court_type == "general":
-            targets = [self.SEARCH_URL]
-        else:
-            # Если тип не указан, ищем и там и там
-            targets = [self.ARBITR_URL, self.SEARCH_URL]
-
-        async with httpx.AsyncClient(timeout=45.0, follow_redirects=True) as client:
-            for url in targets:
-                try:
-                    response = await client.get(url, params=params, headers=self.headers)
-                    if response.status_code == 200:
-                        results = self._parse_search_results(response.text)
-                        all_results.extend(results)
-                    
-                    if len(all_results) >= limit:
-                        break
-                except Exception as e:
-                    logger.error(f"Error searching {url}: {e}")
-
-        # Финальная очистка и лимит
-        seen_urls = set()
-        unique_results = []
-        for r in all_results:
-            if r['url'] not in seen_urls:
-                unique_results.append(r)
-                seen_urls.add(r['url'])
-        
-        return unique_results[:limit]
-
-    def _parse_search_results(self, html: str) -> List[Dict[str, Any]]:
-        """Улучшенный парсинг результатов поиска."""
+    async def _search_endpoint(
+        self,
+        client: httpx.AsyncClient,
+        endpoint: str,
+        query: str,
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        """Поиск на конкретном эндпоинте sudact.ru."""
+        params = {
+            "q": query,
+            "sort": "date:desc",
+        }
         try:
-            soup = BeautifulSoup(html, "html.parser")
-            results = []
-
-            # Точные селекторы для актуальной верстки
-            items = soup.select(".doc-block, .search-result, .item, .doc")
-            
-            if not items:
-                # Если блоки не найдены, ищем через заголовки
-                items = soup.select("h4, h3")
-
-            for item in items:
-                case_data = self._extract_case_data(item)
-                if case_data and case_data.get('url'):
-                    results.append(case_data)
-            
-            return results
-
-        except Exception as e:
-            logger.error(f"Error parsing search results: {str(e)}")
+            response = await client.get(endpoint, params=params)
+            if response.status_code != 200:
+                return []
+            return self._parse_html(response.text, endpoint)
+        except httpx.TimeoutException:
+            logger.warning(f"Timeout on {endpoint}")
             return []
 
-    def _extract_case_data(self, block: BeautifulSoup) -> Optional[Dict[str, Any]]:
-        """Глубокое извлечение данных дела."""
+    def _parse_html(self, html: str, base_url: str) -> List[Dict[str, Any]]:
+        """
+        Парсит страницу результатов sudact.ru.
+        Работает с реальной структурой сайта по состоянию на 2025-2026.
+        """
+        results = []
         try:
-            # 1. Заголовок и URL
-            title_tag = block.select_one(".doc-title, h4 a, h3 a, a[href*='/doc/']")
-            if not title_tag and block.name == "a":
-                title_tag = block
-            
-            if not title_tag:
-                return None
-                
-            title = title_tag.get_text().strip()
-            url = title_tag.get("href", "")
-            
-            if not url or len(title) < 10:
+            soup = BeautifulSoup(html, "html.parser")
+
+            # === Стратегия 1: блоки результатов (основная вёрстка sudact) ===
+            # sudact.ru использует div с классами, включающими "doc" или "result"
+            blocks = soup.find_all("div", attrs={"data-id": True})
+            if not blocks:
+                # Стратегия 2: ищем по тегу article
+                blocks = soup.find_all("article")
+            if not blocks:
+                # Стратегия 3: ищем секции с заголовком-ссылкой
+                blocks = soup.find_all("li", class_=lambda c: c and "result" in c.lower())
+            if not blocks:
+                # Стратегия 4: ищем через контейнер поиска
+                container = (
+                    soup.find("div", class_="search-result") or
+                    soup.find("div", id="search-results") or
+                    soup.find("ul", class_="documents") or
+                    soup.find("div", class_="documents")
+                )
+                if container:
+                    blocks = container.find_all(["li", "div", "article"])
+
+            # === Стратегия 5 (fallback): все ссылки на /doc/ страницы ===
+            if not blocks:
+                links = soup.find_all("a", href=re.compile(r"/doc/|/document/"))
+                for link in links:
+                    href = link.get("href", "")
+                    title = link.get_text(strip=True)
+                    if len(title) < 15:
+                        continue
+                    url = href if href.startswith("http") else urljoin(SUDACT_BASE, href)
+                    results.append({
+                        "title": title,
+                        "url": url,
+                        "meta": "",
+                        "snippet": "",
+                        "date": "",
+                        "court": self._court_from_url(url),
+                    })
+                    if len(results) >= 20:
+                        break
+                return results
+
+            for block in blocks:
+                doc = self._extract_case_from_block(block, base_url)
+                if doc:
+                    results.append(doc)
+
+        except Exception as e:
+            logger.error(f"sudact parse error: {e}")
+
+        return results
+
+    def _extract_case_from_block(
+        self, block: BeautifulSoup, base_url: str
+    ) -> Optional[Dict[str, Any]]:
+        """Извлечь данные одного дела из блока."""
+        try:
+            # Заголовок и URL
+            link = (
+                block.find("a", href=re.compile(r"/doc/|/document/")) or
+                block.find("a", class_=re.compile(r"title|heading|name", re.I)) or
+                block.find("h1 a") or block.find("h2 a") or block.find("h3 a") or
+                block.find("h4 a") or block.find("a", href=True)
+            )
+            if not link:
                 return None
 
-            if url and not url.startswith("http"):
-                url = urljoin(self.BASE_URL, url)
-            
-            # 2. Мета-информация (Суд, Дата, Судья)
-            meta_text = ""
-            meta_tag = block.select_one(".doc-meta, .meta, .info")
-            if meta_tag:
-                meta_text = meta_tag.get_text().strip()
-            
-            # 3. Сниппет (кусок текста)
-            snippet = ""
-            snippet_tag = block.select_one(".doc-snippet, .snippet, .text-preview")
-            if snippet_tag:
-                snippet = snippet_tag.get_text().strip()
-            
-            # 4. Поиск даты в мета-информации для сортировки/валидации
-            import re
-            date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', meta_text + title + snippet)
+            title = link.get_text(strip=True)
+            if len(title) < 10:
+                return None
+
+            href = link.get("href", "")
+            if not href:
+                return None
+
+            url = href if href.startswith("http") else urljoin(SUDACT_BASE, href)
+
+            # Метаданные (суд, дата, судья)
+            meta_el = block.find(class_=re.compile(r"meta|info|detail|date", re.I))
+            meta_text = meta_el.get_text(separator=" ", strip=True) if meta_el else ""
+
+            # Сниппет текста
+            snippet_el = block.find(class_=re.compile(r"snippet|preview|text|summary", re.I))
+            if not snippet_el:
+                # Берём весь текст блока минус заголовок
+                full_text = block.get_text(separator=" ", strip=True)
+                snippet = full_text.replace(title, "").replace(meta_text, "").strip()
+            else:
+                snippet = snippet_el.get_text(separator=" ", strip=True)
+
+            snippet = re.sub(r"\s+", " ", snippet)[:400]
+
+            # Дата из метаданных
+            date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", meta_text + title + snippet)
             date_str = date_match.group(1) if date_match else ""
 
             return {
                 "title": title,
                 "url": url,
-                "meta": meta_text,
-                "snippet": snippet[:400] + "..." if len(snippet) > 400 else snippet,
-                "date": date_str
+                "meta": meta_text[:200],
+                "snippet": snippet,
+                "date": date_str,
+                "court": self._court_from_url(url),
             }
-            
-        except Exception as e:
+        except Exception:
             return None
+
+    def _court_from_url(self, url: str) -> str:
+        """Определить тип суда по URL."""
+        if "/arbitr/" in url:
+            return "Арбитражный суд"
+        if "/vsrf/" in url:
+            return "Верховный Суд РФ"
+        if "/magistrate/" in url:
+            return "Мировой судья"
+        if "/regular/" in url:
+            return "Суд общей юрисдикции"
+        return ""
+
+    def _build_search_url(self, query: str, court_type: Optional[str]) -> str:
+        """Строим прямую ссылку для поиска на sudact.ru."""
+        if court_type == "arbitrazh":
+            base = f"{SUDACT_BASE}/arbitr/doc/"
+        elif court_type == "vsrf":
+            base = f"{SUDACT_BASE}/vsrf/doc/"
+        else:
+            base = f"{SUDACT_BASE}/regular/doc/"
+        return f"{base}?q={quote_plus(query)}&sort=date:desc"
 
     async def get_case_full(self, url: str) -> Optional[Dict[str, Any]]:
-        """
-        Получить полное дело по URL.
-
-        Args:
-            url: URL дела
-
-        Returns:
-            Полные данные дела
-        """
+        """Получить полный текст дела по URL."""
         try:
-            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-                response = await client.get(url, headers=self.headers)
-                response.raise_for_status()
-                
-                return self._parse_case_full(response.text, url)
-                
-        except httpx.HTTPError as e:
-            logger.error(f"Error fetching case: {str(e)}")
+            async with httpx.AsyncClient(
+                timeout=20.0, follow_redirects=True, headers=HTTP_HEADERS
+            ) as client:
+                response = await client.get(url)
+                if response.status_code != 200:
+                    return None
+                return self._parse_full_case(response.text, url)
+        except Exception as e:
+            logger.error(f"Error fetching case full: {e}")
             return None
 
-    def _parse_case_full(self, html: str, url: str) -> Optional[Dict[str, Any]]:
+    def _parse_full_case(self, html: str, url: str) -> Optional[Dict[str, Any]]:
         """Парсинг полного текста дела."""
         try:
             soup = BeautifulSoup(html, "html.parser")
-            
-            # Заголовок
-            title_tag = soup.find("h1")
-            title = title_tag.text.strip() if title_tag else ""
-            
-            # Дата
-            date_tag = soup.find("span", class_="doc-date")
-            date = date_tag.text.strip() if date_tag else ""
-            
+
+            h1 = soup.find("h1")
+            title = h1.get_text(strip=True) if h1 else ""
+
+            # Попытки найти основной текст
+            text_el = (
+                soup.find("div", class_=re.compile(r"doc.text|document.text|content", re.I)) or
+                soup.find("div", id=re.compile(r"doc.content|document", re.I)) or
+                soup.find("article")
+            )
+            text = text_el.get_text(separator="\n", strip=True)[:5000] if text_el else ""
+
             # Суд
-            court_tag = soup.find("div", class_="doc-court")
-            court = court_tag.text.strip() if court_tag else ""
-            
-            # Текст решения
-            text_tag = soup.find("div", class_="doc-text")
-            text = text_tag.text.strip() if text_tag else ""
-            
-            # Решение
-            decision_tag = soup.find("div", class_="doc-decision")
-            decision = decision_tag.text.strip() if decision_tag else ""
-            
+            court_el = soup.find(string=re.compile(r"Суд|Court", re.I))
+            court = court_el.strip() if court_el else self._court_from_url(url)
+
             return {
                 "title": title,
                 "url": url,
-                "date": date,
-                "court": court,
                 "text": text,
-                "decision": decision,
+                "court": court,
             }
-            
-        except Exception as e:
-            logger.error(f"Error parsing full case: {str(e)}")
+        except Exception:
             return None
 
 
-# Singleton instance
-sudact_parser = SudactParser()
+# Singleton
+sudact_service = SudactService()
+# Обратная совместимость
+sudact_parser = sudact_service
