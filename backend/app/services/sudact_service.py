@@ -16,13 +16,29 @@ logger = logging.getLogger(__name__)
 
 SUDACT_BASE = "https://sudact.ru"
 
-# Все эндпоинты поиска на sudact.ru
-SUDACT_ENDPOINTS = [
-    f"{SUDACT_BASE}/arbitr/doc/",    # Арбитражные суды
-    f"{SUDACT_BASE}/regular/doc/",   # Суды общей юрисдикции
-    f"{SUDACT_BASE}/magistrate/doc/", # Мировые судьи
-    f"{SUDACT_BASE}/vsrf/doc/",      # Верховный Суд РФ
-]
+# Mappings of court endpoints and parameter prefixes on sudact.ru
+COURT_MAPPINGS = {
+    "arbitral": {
+        "name": "Арбитражные суды",
+        "path": "arbitral",
+        "param": "arbitral-txt"
+    },
+    "regular": {
+        "name": "Суды общей юрисдикции",
+        "path": "regular",
+        "param": "regular-txt"
+    },
+    "magistrate": {
+        "name": "Мировые судьи",
+        "path": "magistrate",
+        "param": "magistrate-txt"
+    },
+    "vsrf": {
+        "name": "Верховный Суд РФ",
+        "path": "vsrf",
+        "param": "vsrf-txt"
+    }
+}
 
 HTTP_HEADERS = {
     "User-Agent": (
@@ -68,30 +84,31 @@ class SudactService:
 
         # Определяем какие эндпоинты обходить
         if court_type == "arbitrazh":
-            endpoints = [f"{SUDACT_BASE}/arbitr/doc/"]
+            targets = ["arbitral"]
         elif court_type == "general":
-            endpoints = [f"{SUDACT_BASE}/regular/doc/"]
+            targets = ["regular"]
         elif court_type == "vsrf":
-            endpoints = [f"{SUDACT_BASE}/vsrf/doc/"]
+            targets = ["vsrf"]
         else:
-            endpoints = SUDACT_ENDPOINTS  # Ищем везде
+            targets = list(COURT_MAPPINGS.keys())
 
         async with httpx.AsyncClient(
             timeout=20.0,
             follow_redirects=True,
             headers=HTTP_HEADERS,
         ) as client:
-            for endpoint in endpoints:
+            for target in targets:
                 if len(cases) >= limit:
                     break
                 try:
-                    results = await self._search_endpoint(client, endpoint, query, limit)
+                    mapping = COURT_MAPPINGS[target]
+                    results = await self._search_endpoint(client, mapping, query)
                     for r in results:
                         if r["url"] not in seen_urls:
                             cases.append(r)
                             seen_urls.add(r["url"])
                 except Exception as e:
-                    logger.warning(f"sudact endpoint {endpoint} error: {e}")
+                    logger.warning(f"sudact endpoint {target} error: {e}")
 
         return {
             "cases": cases[:limit],
@@ -103,142 +120,137 @@ class SudactService:
     async def _search_endpoint(
         self,
         client: httpx.AsyncClient,
-        endpoint: str,
+        mapping: Dict[str, str],
         query: str,
-        limit: int,
     ) -> List[Dict[str, Any]]:
         """Поиск на конкретном эндпоинте sudact.ru."""
+        path = mapping["path"]
+        param_name = mapping["param"]
+        
+        main_url = f"{SUDACT_BASE}/{path}/doc/"
+        ajax_url = f"{SUDACT_BASE}/{path}/doc_ajax/"
+        
         params = {
-            "q": query,
+            param_name: query,
+            f"{path}-date_from": "",
+            f"{path}-date_to": "",
             "sort": "date:desc",
         }
+        
         try:
-            response = await client.get(endpoint, params=params)
+            # 1. Загружаем основную страницу для инициализации сессии/кук
+            await client.get(main_url, params=params)
+            
+            # 2. Выполняем AJAX запрос
+            response = await client.get(ajax_url, params=params)
             if response.status_code != 200:
                 return []
-            return self._parse_html(response.text, endpoint)
+                
+            data = response.json()
+            content = data.get("content", "")
+            if not content:
+                return []
+                
+            return self._parse_html(content, main_url)
         except httpx.TimeoutException:
-            logger.warning(f"Timeout on {endpoint}")
+            logger.warning(f"Timeout on {path}")
+            return []
+        except Exception as e:
+            logger.warning(f"Error requesting {path}: {e}")
             return []
 
     def _parse_html(self, html: str, base_url: str) -> List[Dict[str, Any]]:
         """
-        Парсит страницу результатов sudact.ru.
-        Работает с реальной структурой сайта по состоянию на 2025-2026.
+        Парсит HTML-сниппет результатов из AJAX-ответа sudact.ru.
         """
         results = []
         try:
             soup = BeautifulSoup(html, "html.parser")
-
-            # === Стратегия 1: блоки результатов (основная вёрстка sudact) ===
-            # sudact.ru использует div с классами, включающими "doc" или "result"
-            blocks = soup.find_all("div", attrs={"data-id": True})
-            if not blocks:
-                # Стратегия 2: ищем по тегу article
-                blocks = soup.find_all("article")
-            if not blocks:
-                # Стратегия 3: ищем секции с заголовком-ссылкой
-                blocks = soup.find_all("li", class_=lambda c: c and "result" in c.lower())
-            if not blocks:
-                # Стратегия 4: ищем через контейнер поиска
-                container = (
-                    soup.find("div", class_="search-result") or
-                    soup.find("div", id="search-results") or
-                    soup.find("ul", class_="documents") or
-                    soup.find("div", class_="documents")
-                )
-                if container:
-                    blocks = container.find_all(["li", "div", "article"])
-
-            # === Стратегия 5 (fallback): все ссылки на /doc/ страницы ===
-            if not blocks:
-                links = soup.find_all("a", href=re.compile(r"/doc/|/document/"))
-                for link in links:
-                    href = link.get("href", "")
-                    title = link.get_text(strip=True)
-                    if len(title) < 15:
-                        continue
-                    url = href if href.startswith("http") else urljoin(SUDACT_BASE, href)
-                    results.append({
-                        "title": title,
-                        "url": url,
-                        "meta": "",
-                        "snippet": "",
-                        "date": "",
-                        "court": self._court_from_url(url),
-                    })
-                    if len(results) >= 20:
-                        break
-                return results
-
-            for block in blocks:
-                doc = self._extract_case_from_block(block, base_url)
-                if doc:
-                    results.append(doc)
-
+            
+            # В AJAX-ответе SudAct результаты обернуты в <ul class="results"> и каждый элемент в <li>
+            ul = soup.find("ul", class_="results")
+            items = ul.find_all("li") if ul else soup.find_all("li")
+            
+            for item in items:
+                # 1. Поиск ссылки на документ
+                link = item.find("a", href=re.compile(r"/doc/|/document/"))
+                if not link:
+                    continue
+                    
+                href = link.get("href", "")
+                url = href if href.startswith("http") else urljoin(SUDACT_BASE, href)
+                
+                title = link.get_text(separator=" ", strip=True)
+                title = re.sub(r'^\d+\.\s*', '', title)  # Убираем порядковый номер в начале
+                
+                # 2. Орган/мета-информация из <div class="b-justice">
+                justice_div = item.find("div", class_="b-justice")
+                meta = justice_div.get_text(separator=" ", strip=True) if justice_div else ""
+                
+                # 3. Извлечение сниппета (оставшийся текст в li)
+                full_text = item.get_text(separator=" ", strip=True)
+                snippet = full_text
+                if title in snippet:
+                    snippet = snippet.replace(title, "")
+                if meta in snippet:
+                    snippet = snippet.replace(meta, "")
+                    
+                # Очищаем сниппет от лишних символов
+                snippet = re.sub(r'^\d+\.\s*', '', snippet)
+                snippet = re.sub(r'\s+', ' ', snippet).strip()
+                snippet = snippet[:400]
+                
+                # 4. Извлекаем дату (формат ДД.ММ.ГГГГ или словами "от 27 ноября 2025 г.")
+                date_str = ""
+                # Пробуем ДД.ММ.ГГГГ
+                date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", meta + title + snippet)
+                if date_match:
+                    date_str = date_match.group(1)
+                else:
+                    # Пробуем словами: "от 27 ноября 2025 г."
+                    months = {
+                        "января": "01", "февраля": "02", "марта": "03", "апреля": "04",
+                        "мая": "05", "июня": "06", "июля": "07", "августа": "08",
+                        "сентября": "09", "октября": "10", "ноября": "11", "декабря": "12"
+                    }
+                    text_for_date = meta + " " + title + " " + snippet
+                    word_date_match = re.search(
+                        r"(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)\s+(\d{4})",
+                        text_for_date,
+                        re.IGNORECASE
+                    )
+                    if word_date_match:
+                        day = word_date_match.group(1).zfill(2)
+                        mon = months.get(word_date_match.group(2).lower(), "01")
+                        year = word_date_match.group(3)
+                        date_str = f"{day}.{mon}.{year}"
+                
+                # Извлекаем название суда
+                court = ""
+                if meta:
+                    if " - " in meta:
+                        court = meta.split(" - ")[0].strip()
+                    else:
+                        court = meta.strip()
+                if not court:
+                    court = self._court_from_url(url)
+                    
+                results.append({
+                    "title": title,
+                    "url": url,
+                    "meta": meta,
+                    "snippet": snippet,
+                    "date": date_str,
+                    "court": court,
+                })
         except Exception as e:
             logger.error(f"sudact parse error: {e}")
-
+            
         return results
-
-    def _extract_case_from_block(
-        self, block: BeautifulSoup, base_url: str
-    ) -> Optional[Dict[str, Any]]:
-        """Извлечь данные одного дела из блока."""
-        try:
-            # Заголовок и URL
-            link = (
-                block.find("a", href=re.compile(r"/doc/|/document/")) or
-                block.find("a", class_=re.compile(r"title|heading|name", re.I)) or
-                block.find("h1 a") or block.find("h2 a") or block.find("h3 a") or
-                block.find("h4 a") or block.find("a", href=True)
-            )
-            if not link:
-                return None
-
-            title = link.get_text(strip=True)
-            if len(title) < 10:
-                return None
-
-            href = link.get("href", "")
-            if not href:
-                return None
-
-            url = href if href.startswith("http") else urljoin(SUDACT_BASE, href)
-
-            # Метаданные (суд, дата, судья)
-            meta_el = block.find(class_=re.compile(r"meta|info|detail|date", re.I))
-            meta_text = meta_el.get_text(separator=" ", strip=True) if meta_el else ""
-
-            # Сниппет текста
-            snippet_el = block.find(class_=re.compile(r"snippet|preview|text|summary", re.I))
-            if not snippet_el:
-                # Берём весь текст блока минус заголовок
-                full_text = block.get_text(separator=" ", strip=True)
-                snippet = full_text.replace(title, "").replace(meta_text, "").strip()
-            else:
-                snippet = snippet_el.get_text(separator=" ", strip=True)
-
-            snippet = re.sub(r"\s+", " ", snippet)[:400]
-
-            # Дата из метаданных
-            date_match = re.search(r"(\d{2}\.\d{2}\.\d{4})", meta_text + title + snippet)
-            date_str = date_match.group(1) if date_match else ""
-
-            return {
-                "title": title,
-                "url": url,
-                "meta": meta_text[:200],
-                "snippet": snippet,
-                "date": date_str,
-                "court": self._court_from_url(url),
-            }
-        except Exception:
-            return None
 
     def _court_from_url(self, url: str) -> str:
         """Определить тип суда по URL."""
-        if "/arbitr/" in url:
+        if "/arbitr" in url:
             return "Арбитражный суд"
         if "/vsrf/" in url:
             return "Верховный Суд РФ"
@@ -251,12 +263,14 @@ class SudactService:
     def _build_search_url(self, query: str, court_type: Optional[str]) -> str:
         """Строим прямую ссылку для поиска на sudact.ru."""
         if court_type == "arbitrazh":
-            base = f"{SUDACT_BASE}/arbitr/doc/"
+            mapping = COURT_MAPPINGS["arbitral"]
         elif court_type == "vsrf":
-            base = f"{SUDACT_BASE}/vsrf/doc/"
+            mapping = COURT_MAPPINGS["vsrf"]
+        elif court_type == "general":
+            mapping = COURT_MAPPINGS["regular"]
         else:
-            base = f"{SUDACT_BASE}/regular/doc/"
-        return f"{base}?q={quote_plus(query)}&sort=date:desc"
+            mapping = COURT_MAPPINGS["regular"]
+        return f"{SUDACT_BASE}/{mapping['path']}/doc/?{mapping['param']}={quote_plus(query)}&sort=date:desc"
 
     async def get_case_full(self, url: str) -> Optional[Dict[str, Any]]:
         """Получить полный текст дела по URL."""

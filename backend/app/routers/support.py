@@ -127,11 +127,17 @@ async def get_support_messages(
         "is_read": m.is_read
     } for m in messages]
 
-@router.post("/telegram-webhook")
+@router.api_route("/telegram-webhook", methods=["GET", "POST"])
 async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Принимает ответы от админа из Телеграма (включая фото)."""
+    if request.method == "GET":
+        return {"status": "ok", "message": "Webhook endpoint is alive"}
+    
+    # Логируем начало запроса
+    logger.info("=== TELEGRAM WEBHOOK START ===")
     try:
         data = await request.json()
+        logger.info(f"Webhook data: {data}")
         message = data.get("message")
         if not message:
             return {"ok": True}
@@ -144,6 +150,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         original_text = reply_to.get("text") or reply_to.get("caption") or ""
         
         import re
+        # Ищем UUID (ID пользователя) в тексте сообщения
         user_ids = re.findall(r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}', original_text)
         
         if not user_ids:
@@ -151,7 +158,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
             return {"ok": True}
         
         target_user_id = user_ids[0]
-        reply_text = message.get("text") or message.get("caption")
+        reply_text = message.get("text") or message.get("caption") or "[Без текста]"
         
         logger.info(f"Processing support reply for user {target_user_id}")
         
@@ -160,15 +167,11 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         if "photo" in message:
             logger.info("Processing photo in telegram reply")
             photo_list = message.get("photo")
-            # Берем самое большое разрешение
             file_id = photo_list[-1]["file_id"]
             
             async with httpx.AsyncClient() as client:
-                # Получаем путь к файлу
                 file_info = await client.get(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}", timeout=10.0)
                 file_path_tg = file_info.json()["result"]["file_path"]
-                
-                # Скачиваем файл
                 file_content = await client.get(f"https://api.telegram.org/file/bot{settings.TELEGRAM_BOT_TOKEN}/{file_path_tg}", timeout=20.0)
                 
                 file_name = f"admin_{uuid.uuid4()}.jpg"
@@ -179,7 +182,7 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                 
                 image_url = f"/uploads/support/{file_name}"
 
-        # Сохраняем ответ поддержки в БД
+        # Сохраняем ответ в БД
         new_reply = SupportMessage(
             id=str(uuid.uuid4()),
             user_id=target_user_id,
@@ -191,15 +194,14 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
         await db.commit()
         logger.info(f"Successfully saved support message for user {target_user_id}")
         
-        # Отправляем подтверждение админу, чтобы он мог продолжить диалог, отвечая на это сообщение
+        # Подтверждение админу
         try:
-            # Получаем инфо о пользователе для подтверждения
             from app.models.user import User
             user_result = await db.execute(select(User).where(User.id == target_user_id))
             target_user = user_result.scalar_one_or_none()
             user_name = target_user.full_name if target_user else "Неизвестный"
             
-            confirmation_text = f"✅ <b>Ответ отправлен!</b>\n👤 Пользователь: <b>{user_name}</b>\n🆔 <code>{target_user_id}</code>\n\nВы можете ответить на это сообщение, чтобы продолжить диалог."
+            confirmation_text = f"✅ <b>Ответ отправлен!</b>\n👤 Пользователь: <b>{user_name}</b>\n\nВы можете продолжать писать здесь."
             
             async with httpx.AsyncClient() as client:
                 await client.post(
@@ -213,20 +215,19 @@ async def telegram_webhook(request: Request, db: AsyncSession = Depends(get_db))
                     timeout=5.0
                 )
         except Exception as e:
-            logger.error(f"Failed to send confirmation to admin: {e}")
+            logger.error(f"Failed to send confirmation: {e}")
 
         return {"ok": True}
     except Exception as e:
-        logger.error(f"Error in telegram webhook: {str(e)}", exc_info=True)
+        logger.error(f"Error in webhook: {str(e)}", exc_info=True)
         return {"ok": True}
 
 @router.post("/setup-webhook")
 async def setup_webhook():
-    """Установить webhook для Телеграм бота."""
-    webhook_url = f"https://laxlylaw.ru{settings.API_V1_PREFIX}/support/telegram-webhook"
+    """Установить основной webhook."""
+    webhook_url = f"https://laxlylaw.ru/api/v1/support/telegram-webhook"
     async with httpx.AsyncClient() as client:
-        # Сначала удаляем старый, чтобы очистить очередь
-        await client.get(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true")
-        # Ставим новый
+        # Убираем drop_pending_updates=true
+        await client.get(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/deleteWebhook")
         resp = await client.get(f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}")
         return resp.json()

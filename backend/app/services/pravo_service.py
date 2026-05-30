@@ -197,69 +197,89 @@ class PravoService:
         return results
 
     def _normalize_pravo_doc(self, item: dict) -> Optional[Dict[str, Any]]:
-        """Нормализовать документ из pravo.gov.ru API."""
+        """
+        Нормализовать документ из pravo.gov.ru API.
+        Реальные поля API (проверено 30.05.2026):
+          eoNumber, name, complexName, number, documentDate,
+          viewDate, publishDateShort, id, signatoryAuthorityId, documentTypeId
+        """
         try:
-            # API может возвращать разные имена полей
-            doc_id = (
-                item.get("DocumentId") or item.get("Eonum") or
-                item.get("id") or item.get("Id") or ""
-            )
-            title = (
-                item.get("Name") or item.get("Title") or
-                item.get("DocumentName") or item.get("name") or ""
-            ).strip()
-            
-            if not title or len(title) < 5:
+            import re as _re
+
+            # ── ID для построения URL (eoNumber вида 0001202605300029) ──
+            eo_number = item.get("eoNumber") or item.get("EoNumber") or ""
+            doc_uuid  = item.get("id") or item.get("Id") or ""
+
+            # ── Название ──
+            # complexName содержит "Указ Президента РФ от 30.05.2026 № 362\n \"О внесении...\""
+            # name — короткое ("О внесении изменения...")
+            complex_name = item.get("complexName") or item.get("ComplexName") or ""
+            short_name   = item.get("name") or item.get("Name") or ""
+            title_raw    = item.get("title") or item.get("Title") or ""
+
+            # Удаляем HTML-теги из title
+            clean_title = _re.sub(r'<[^>]+>', ' ', title_raw or complex_name or short_name).strip()
+            # Убираем лишние пробелы/переносы
+            clean_title = _re.sub(r'\s+', ' ', clean_title).strip()
+
+            if not clean_title or len(clean_title) < 5:
                 return None
 
-            # Дата подписания
-            date_raw = (
-                item.get("IssueDate") or item.get("SignDate") or
-                item.get("Date") or item.get("date") or ""
-            )
-            date_str = self._parse_date_to_str(date_raw)
-            date_sort = self._parse_date_to_sort(date_raw)
+            # ── Дата ──
+            # viewDate = "30.05.2026" (уже форматирован), documentDate = ISO
+            view_date    = item.get("viewDate") or ""
+            doc_date_iso = item.get("documentDate") or item.get("publishDateShort") or ""
 
-            # Номер документа
-            number = (
-                item.get("Number") or item.get("DocumentNumber") or
-                item.get("number") or ""
-            )
+            if view_date:                           # "30.05.2026"
+                date_str  = view_date
+                date_sort = self._parse_date_to_sort(view_date)
+            elif doc_date_iso:                      # "2026-05-30T00:00:00"
+                date_str  = self._parse_date_to_str(doc_date_iso)
+                date_sort = self._parse_date_to_sort(doc_date_iso)
+            else:
+                date_str  = ""
+                date_sort = ""
 
-            # Вид документа
-            doc_type = (
-                item.get("DocumentKindName") or item.get("Kind") or
-                item.get("type") or "НПА"
-            )
+            # ── Номер документа ──
+            number = item.get("number") or item.get("Number") or ""
 
-            # Орган
-            authority = (
-                item.get("SignatoryAuthorityName") or item.get("Authority") or
-                item.get("author") or ""
-            )
+            # ── Тип документа — извлекаем из complexName ──
+            doc_type = self._guess_doc_type(clean_title, "pravo_news")
+            if complex_name:
+                for kw in ("Федеральный конституционный закон", "Федеральный закон",
+                           "Указ Президента", "Постановление Правительства",
+                           "Распоряжение Правительства", "Приказ"):
+                    if kw.lower() in complex_name.lower():
+                        doc_type = kw
+                        break
 
-            # URL — строим по стандарту pravo.gov.ru
-            if doc_id:
-                url = f"{PRAVO_DOC_VIEW}/{doc_id}"
+            # ── URL — приоритет eoNumber, затем UUID ──
+            if eo_number:
+                url = f"{PRAVO_DOC_VIEW}/{eo_number}"
+            elif doc_uuid:
+                url = f"{PRAVO_DOC_VIEW}/{doc_uuid}"
             else:
                 url = ""
 
-            # Аннотация / суть
+            # ── Описание (аннотация если есть, иначе короткое имя) ──
             description = (
-                item.get("Annotation") or item.get("Description") or
-                item.get("description") or item.get("Abstract") or ""
+                item.get("Annotation") or item.get("annotation") or
+                item.get("Description") or item.get("description") or
+                short_name or ""
             ).strip()
+            description = _re.sub(r'<[^>]+>', ' ', description)
+            description = _re.sub(r'\s+', ' ', description).strip()
 
             return {
-                "title": title,
-                "url": url,
-                "date": date_str,
+                "title":     clean_title,
+                "url":       url,
+                "date":      date_str,
                 "date_sort": date_sort,
-                "number": number,
-                "doc_type": doc_type,
-                "authority": authority,
-                "description": description,
-                "source": "pravo.gov.ru",
+                "number":    number,
+                "doc_type":  doc_type,
+                "authority": "",          # нет в базовом ответе API
+                "description": description[:500],
+                "source":    "pravo.gov.ru",
             }
         except Exception as e:
             logger.debug(f"Error normalizing pravo doc: {e}")

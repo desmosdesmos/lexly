@@ -46,8 +46,10 @@ class TelegramNotifier:
     async def send_message(self, text: str, parse_mode: str = "HTML") -> bool:
         """Отправить сообщение админу."""
         if not self.enabled or not self.admin_chat_id:
+            logger.warning("Telegram notifier is disabled or admin_chat_id is missing")
             return False
 
+        logger.info(f"Sending TG message to {self.admin_chat_id} using token {settings.TELEGRAM_BOT_TOKEN[:10]}...")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
