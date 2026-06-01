@@ -10,6 +10,26 @@
     <meta name="apple-mobile-web-app-title" content="Laxly AI" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Laxly — Ваш AI Юрист</title>
+    <script>
+      // Принудительный сброс кэша Service Worker для обновления PWA
+      if (!localStorage.getItem('cache_busted_v4')) {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(registrations) {
+            for(let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(names) {
+            for (let name of names) caches.delete(name);
+          });
+        }
+        localStorage.setItem('cache_busted_v4', 'true');
+        // Перезагрузка страницы с очисткой кэша
+        window.location.reload(true);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
