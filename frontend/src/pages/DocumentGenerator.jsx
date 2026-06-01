@@ -36,6 +36,9 @@ export function DocumentGenerator() {
     contract_sale: { p: 'Продавец', d: 'Покупатель', c: 'Описание товара/имущества', l: 'Цена и порядок оплаты', t: 'Особые условия (доставка и др.)' },
     contract_employment: { p: 'Работодатель', d: 'Работник', c: 'Место работы и условия', l: 'Оклад и надбавки', t: 'Специфические условия', extra: 'Должность' },
     power_of_attorney: { p: 'Доверитель', d: 'Поверенный', c: 'Полномочия (что доверяете)', l: 'Срок и место действия', t: 'Дополнительная информация', extra: 'Место выдачи' },
+    wb_claim: { p: 'Продавец (ИП/ООО)', d: 'Маркетплейс', c: 'Описание проблемы (утеря, штраф, блокировка)', l: 'Ссылки на акты/тикеты', t: 'Требования (сумма, возврат)' },
+    zozp_claim: { p: 'Потребитель', d: 'Продавец/Исполнитель', c: 'Что купили и в чём проблема', l: 'Ссылки на договор/чек', t: 'Требования (возврат, замена)' },
+    auto_fine: { p: 'Владелец ТС', d: 'Орган (ГИБДД/МАДИ/АМПП)', c: 'Номер и дата постановления', l: 'Причина несогласия со штрафом', t: 'Требования (отмена, пересмотр)' },
   }
 
   const currentLabels = labels[documentType] || labels.claim
@@ -133,6 +136,38 @@ export function DocumentGenerator() {
           powers: formData.circumstances,
           expiry: formData.court_name,
           circumstances: formData.claims,
+        }
+      } else if (documentType === 'wb_claim') {
+        data = {
+          marketplace_name: formData.defendant_name || 'Wildberries',
+          seller_name: formData.plaintiff_name,
+          seller_inn: formData.plaintiff_inn,
+          seller_address: formData.plaintiff_address,
+          problem_type: 'general',
+          circumstances: formData.circumstances,
+          claims: formData.claims,
+          doc_numbers: formData.legal_basis,
+          amount: '',
+        }
+      } else if (documentType === 'zozp_claim') {
+        data = {
+          buyer_name: formData.plaintiff_name,
+          buyer_address: formData.plaintiff_address,
+          seller_name: formData.defendant_name,
+          seller_address: formData.defendant_address,
+          product_description: formData.circumstances,
+          legal_basis: formData.legal_basis,
+          claims: formData.claims,
+        }
+      } else if (documentType === 'auto_fine') {
+        data = {
+          owner_name: formData.plaintiff_name,
+          owner_address: formData.plaintiff_address,
+          authority_name: formData.defendant_name,
+          resolution_number: formData.court_name,
+          circumstances: formData.circumstances,
+          legal_basis: formData.legal_basis,
+          claims: formData.claims,
         }
       }
 
@@ -278,11 +313,14 @@ export function DocumentGenerator() {
                     <option value="contract_sale">Договор купли-продажи</option>
                     <option value="contract_employment">Трудовой договор</option>
                     <option value="power_of_attorney">Доверенность</option>
+                    <option value="wb_claim">Претензия к маркетплейсу (WB/Ozon)</option>
+                    <option value="zozp_claim">Защита прав потребителя (ЗОПП)</option>
+                    <option value="auto_fine">Обжалование автоштрафа</option>
                   </Select>
                 </div>
 
                 {/* Parties fields (Shared by many) */}
-                {['claim', 'demand', 'contract_sale', 'contract_employment', 'power_of_attorney'].includes(documentType) && (
+                {['claim', 'demand', 'contract_sale', 'contract_employment', 'power_of_attorney', 'wb_claim', 'zozp_claim', 'auto_fine'].includes(documentType) && (
                   <div>
                     <h3 className="text-lg font-semibold mb-4">Стороны</h3>
                     {(documentType === 'claim' || currentLabels.extra) && (

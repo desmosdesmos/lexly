@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { 
   FileText, Shield, Scale, TrendingUp, ArrowRight, Clock, 
   CheckCircle, MessageSquare, Sparkles, ChevronRight, 
-  AlertTriangle, Zap 
+  AlertTriangle, Zap, Building2, Gavel 
 } from 'lucide-react'
 import { Card, CardBody, CardHeader } from '../components/ui/Card'
 import { useAuth } from '../context/AuthContext'
@@ -80,6 +80,8 @@ export function DashboardHome() {
     { icon: MessageSquare, title: 'AI-консультант', desc: 'Вопросы по законодательству', link: '/dashboard/consultant' },
     { icon: Scale, title: 'Судебная практика', desc: 'Поиск и анализ дел', link: '/dashboard/case-law' },
     { icon: TrendingUp, title: 'Мониторинг', desc: 'Изменения в законах', link: '/dashboard/monitoring' },
+    { icon: Building2, title: 'Претензия к WB/Ozon', desc: 'Возврат за утерю товара или штраф', link: '/dashboard/documents?type=wb_claim' },
+    { icon: Gavel, title: 'Обжалование штрафа', desc: 'Жалоба на автоштраф ГИБДД/МАДИ', link: '/dashboard/documents?type=auto_fine' },
   ]
 
   if (loading) {

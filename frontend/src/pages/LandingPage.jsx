@@ -289,8 +289,8 @@ export function LandingPage() {
                 </div>
                 <div className="flex items-center justify-between mt-4">
                   <span className="text-xl font-bold text-white">{tool.price}</span>
-                  <Link to={tool.link}>
-                    <Button variant="primary" className="h-10 px-4 rounded-lg text-xs font-bold">Выбрать</Button>
+                  <Link to={user ? '/dashboard/documents' : '/register'}>
+                    <Button variant="primary" className="h-10 px-4 rounded-lg text-xs font-bold">Попробовать</Button>
                   </Link>
                 </div>
               </div>
