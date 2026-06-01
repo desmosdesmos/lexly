@@ -14,6 +14,9 @@ class DocumentType(str, enum.Enum):
     CONTRACT_SALE = "contract_sale"
     CONTRACT_EMPLOYMENT = "contract_employment"
     POWER_OF_ATTORNEY = "power_of_attorney"
+    WB_CLAIM = "wb_claim"
+    ZOZP_CLAIM = "zozp_claim"
+    AUTO_FINE = "auto_fine"
 
 
 class DocumentStatus(str, enum.Enum):

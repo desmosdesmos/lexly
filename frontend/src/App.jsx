@@ -1,5 +1,9 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { LandingPage } from './pages/LandingPage'
+import BlogList from './pages/BlogList'
+import MarketplaceClaim from './pages/MarketplaceClaim'
+import ConsumerClaim from './pages/ConsumerClaim'
+import AutoFineClaim from './pages/AutoFineClaim'
 import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
@@ -41,6 +45,10 @@ function App() {
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/blog" element={<BlogList />} />
+        <Route path="/tools/marketplace-claim" element={<MarketplaceClaim />} />
+        <Route path="/tools/consumer-claim" element={<ConsumerClaim />} />
+        <Route path="/tools/auto-fine" element={<AutoFineClaim />} />
         <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to="/dashboard" />} />
         <Route path="/verify-email" element={!user ? <VerifyEmailPage /> : <Navigate to="/dashboard" />} />

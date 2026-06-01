@@ -172,6 +172,22 @@ export const paymentsAPI = {
   },
 }
 
+// Single Purchases API
+export const purchasesAPI = {
+  create: async (documentId, amount, paymentMethod = 'card') => {
+    const response = await api.post('/purchases/create', {
+      document_id: documentId,
+      amount,
+      payment_method: paymentMethod,
+    })
+    return response.data
+  },
+  confirmMock: async (purchaseId) => {
+    const response = await api.post(`/purchases/${purchaseId}/confirm-mock`)
+    return response.data
+  },
+}
+
 // API Keys
 export const apiKeysAPI = {
   list: async () => {

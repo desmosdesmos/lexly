@@ -240,15 +240,30 @@ class AIService:
         mapping = {
             "claim": "claim", "complaint": "complaint", "demand": "demand",
             "contract_sale": "contract_sale", "contract_employment": "contract_employment",
-            "power_of_attorney": "power_of_attorney"
+            "power_of_attorney": "power_of_attorney",
+            "wb_claim": "wb_claim", "zozp_claim": "zozp_claim", "auto_fine": "auto_fine"
         }
-        doc_type = "claim"
-        for k, v in mapping.items():
-            if k in dt: doc_type = v; break
         
-        base_dir = os.getcwd()
-        prompt_file = os.path.join(base_dir, "..", "prompts", "document-generator", f"{doc_type}.txt")
+        # Точное совпадение или поиск подстроки
+        doc_type = None
+        if dt in mapping:
+            doc_type = mapping[dt]
+        else:
+            for k, v in mapping.items():
+                if k in dt: 
+                    doc_type = v
+                    break
         
+        if not doc_type:
+            doc_type = "claim" # Fallback
+        
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        prompt_file = os.path.join(base_dir, "prompts", "document-generator", f"{doc_type}.txt")
+        
+        if not os.path.exists(prompt_file):
+            logger.warning(f"Prompt file not found: {prompt_file}, falling back to claim.txt")
+            prompt_file = os.path.join(base_dir, "prompts", "document-generator", "claim.txt")
+            
         with open(prompt_file, "r", encoding="utf-8") as f:
             template = f.read()
 
@@ -259,7 +274,16 @@ class AIService:
                 value = "\n".join(f"- {item}" for item in value)
             user_prompt = user_prompt.replace(placeholder, str(value))
 
-        if "claim" in dt:
+        if "wb_claim" in dt:
+            role = "Эксперт по спорам с маркетплейсами (Wildberries/Ozon)"
+            goal = "составить досудебную претензию к маркетплейсу"
+        elif "zozp_claim" in dt:
+            role = "Эксперт по защите прав потребителей"
+            goal = "составить претензию на возврат денежных средств"
+        elif "auto_fine" in dt:
+            role = "Автоюрист"
+            goal = "составить жалобу на постановление ГИБДД/МАДИ"
+        elif "claim" in dt:
             role = "Специалист по судебным искам"
             goal = "составить исковое заявление"
         elif "complaint" in dt:

@@ -3,6 +3,8 @@ from app.models.document import Document
 from app.models.contract_review import ContractReview
 from app.models.subscription import Subscription
 from app.models.usage_limit import UsageLimit
+from app.models.seo_article import SEOArticle
+from app.models.single_purchase import SinglePurchase
 from app.models.payment import Payment
 from app.models.request_log import RequestLog
 from app.models.notification import Notification

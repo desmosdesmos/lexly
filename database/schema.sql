@@ -12,7 +12,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 CREATE TYPE user_type_enum AS ENUM ('individual', 'legal');
 CREATE TYPE subscription_plan_enum AS ENUM ('free', 'basic', 'pro', 'enterprise');
 CREATE TYPE subscription_status_enum AS ENUM ('active', 'expired', 'cancelled', 'pending');
-CREATE TYPE document_type_enum AS ENUM ('claim', 'complaint', 'demand');
+CREATE TYPE document_type_enum AS ENUM ('claim', 'complaint', 'demand', 'wb_claim', 'zozp_claim', 'auto_fine');
 CREATE TYPE document_status_enum AS ENUM ('pending', 'processing', 'completed', 'failed');
 CREATE TYPE payment_status_enum AS ENUM ('pending', 'completed', 'failed', 'refunded');
 CREATE TYPE risk_severity_enum AS ENUM ('low', 'medium', 'high', 'critical');
@@ -251,6 +251,43 @@ CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash) UNIQUE;
 CREATE INDEX idx_api_keys_is_active ON api_keys(is_active);
 
 -- ============================================
+-- SEO ARTICLES TABLE
+-- ============================================
+
+CREATE TABLE seo_articles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    title VARCHAR(500) NOT NULL,
+    content TEXT NOT NULL,
+    meta_description TEXT,
+    views_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_seo_articles_slug ON seo_articles(slug);
+
+-- ============================================
+-- SINGLE PURCHASES TABLE
+-- ============================================
+
+CREATE TABLE single_purchases (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'RUB',
+    status payment_status_enum NOT NULL DEFAULT 'pending',
+    payment_method VARCHAR(50),
+    transaction_id VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+CREATE INDEX idx_single_purchases_user_id ON single_purchases(user_id);
+CREATE INDEX idx_single_purchases_status ON single_purchases(status);
+
+-- ============================================
 -- TRIGGERS FOR UPDATED_AT
 -- ============================================
 
@@ -269,6 +306,9 @@ CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_usage_limits_updated_at BEFORE UPDATE ON usage_limits
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_seo_articles_updated_at BEFORE UPDATE ON seo_articles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================

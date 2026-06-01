@@ -119,6 +119,25 @@ class DocxGenerator:
         """Добавить разрыв страницы."""
         self.doc.add_page_break()
 
+    def _add_watermark(self):
+        """Добавить водяной знак (футер) на каждую страницу."""
+        for section in self.doc.sections:
+            footer = section.footer
+            # Если в футере уже есть параграф, используем его, иначе создаем
+            p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
+            # Разделительная линия (опционально)
+            run_line = p.add_run("________________________________________________\n")
+            run_line.font.size = Pt(8)
+            run_line.font.color.rgb = RGBColor(150, 150, 150)
+            
+            run = p.add_run("Документ составлен и проверен ИИ-юристом LAXLY AI LAW — laxly.ru")
+            run.font.size = Pt(9)
+            run.font.italic = True
+            run.font.name = 'Times New Roman'
+            run.font.color.rgb = RGBColor(100, 100, 100)
+
     def generate_claim(self, data: Dict[str, Any]) -> bytes:
         """Сгенерировать исковое заявление."""
         # Шапка
@@ -204,6 +223,9 @@ class DocxGenerator:
         if plaintiff.get('name'):
             self.add_signature_block(plaintiff['name'])
 
+        # Добавляем водяной знак перед сохранением
+        self._add_watermark()
+
         # Сохраняем в bytes
         buffer = io.BytesIO()
         self.doc.save(buffer)
@@ -269,6 +291,9 @@ class DocxGenerator:
 
         if applicant.get('name'):
             self.add_signature_block(applicant['name'])
+
+        # Добавляем водяной знак перед сохранением
+        self._add_watermark()
 
         buffer = io.BytesIO()
         self.doc.save(buffer)
@@ -342,6 +367,9 @@ class DocxGenerator:
         if demander_from.get('name'):
             self.add_signature_block(demander_from['name'])
 
+        # Добавляем водяной знак перед сохранением
+        self._add_watermark()
+
         buffer = io.BytesIO()
         self.doc.save(buffer)
         buffer.seek(0)
@@ -390,6 +418,9 @@ class DocxGenerator:
             p = self.doc.add_paragraph()
             run = p.add_run("")
             run.font.size = Pt(6)
+
+        # Добавляем водяной знак перед сохранением
+        self._add_watermark()
 
         buffer = io.BytesIO()
         self.doc.save(buffer)

@@ -22,6 +22,7 @@ from app.middleware.auth import get_current_user
 from app.services.ai_service import ai_service
 from app.services.limit_service import limit_service
 from app.services.docx_generator import docx_generator
+from app.services.pdf_generator import pdf_generator
 
 logger = logging.getLogger(__name__)
 
@@ -348,6 +349,107 @@ async def download_document_docx(
     return StreamingResponse(
         io.BytesIO(docx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
+    )
+
+
+@router.get(
+    "/{document_id}/download/pdf",
+    summary="Скачать документ в .pdf",
+)
+async def download_document_pdf(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Скачать сгенерированный документ в формате .pdf с водяным знаком."""
+    result = await db.execute(
+        select(Document).where(
+            Document.id == document_id,
+            Document.user_id == current_user.id,
+        )
+    )
+    document = result.scalar_one_or_none()
+
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Документ не найден",
+        )
+
+    if not document.generated_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Документ не содержит сгенерированного содержимого",
+        )
+
+    # Парсим input_data
+    try:
+        input_data = json.loads(document.input_data) if document.input_data else {}
+    except (json.JSONDecodeError, TypeError):
+        input_data = {}
+
+    doc_type = document.document_type.value if hasattr(document.document_type, 'value') else str(document.document_type)
+
+    # Простейшая конвертация контента в HTML для PDF
+    # В будущем можно сделать более красивые шаблоны
+    title_map = {
+        'claim': 'Исковое заявление',
+        'complaint': 'Жалоба',
+        'demand': 'Досудебная претензия',
+        'contract_sale': 'Договор купли-продажи',
+        'contract_employment': 'Трудовой договор',
+        'power_of_attorney': 'Доверенность',
+        'wb_claim': 'Претензия к Wildberries',
+        'zozp_claim': 'Претензия (ЗОПП)',
+        'auto_fine': 'Жалоба на автоштраф'
+    }
+    title = title_map.get(doc_type, 'Юридический документ')
+
+    # Формируем HTML контент на основе типа
+    html_content = ""
+    
+    # Шапка для классических документов
+    if doc_type in ['claim', 'complaint', 'demand']:
+        html_content += '<div class="address-block">'
+        if doc_type == 'claim' and input_data.get('court_name'):
+            html_content += f"В {input_data['court_name']}<br><br>"
+        elif doc_type == 'complaint' and input_data.get('authority_name'):
+            html_content += f"В {input_data['authority_name']}<br><br>"
+        elif doc_type == 'demand' and input_data.get('demander', {}).get('name'):
+            html_content += f"Кому: {input_data['demander']['name']}<br>"
+            if input_data['demander'].get('address'):
+                html_content += f"Адрес: {input_data['demander']['address']}<br>"
+        html_content += '</div>'
+
+    # Основное тело (из markdown-подобного текста AI)
+    body_html = document.generated_content.replace('\n', '<br>')
+    html_content += f'<div class="content">{body_html}</div>'
+
+    try:
+        pdf_bytes = pdf_generator.generate_pdf(title, html_content)
+    except Exception as e:
+        logger.error(f"PDF generation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка генерации .pdf: {str(e)}",
+        )
+
+    # Имя файла
+    type_names = {
+        'claim': 'isk', 
+        'complaint': 'zhaloba', 
+        'demand': 'pretenziya',
+        'wb_claim': 'wb_claim',
+        'zozp_claim': 'zozp_claim',
+        'auto_fine': 'auto_fine'
+    }
+    filename = type_names.get(doc_type, 'document')
+    safe_name = f"{filename}_{document.id[:8]}.pdf"
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_name}"},
     )
 

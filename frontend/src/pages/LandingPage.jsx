@@ -51,6 +51,7 @@ export function LandingPage() {
           <div className="hidden md:flex items-center gap-8">
             <a href="#how-it-works" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Как это работает</a>
             <a href="#features" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Возможности</a>
+            <Link to="/blog" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">База знаний</Link>
             <a href="#tariffs" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Тарифы</a>
             <div className="h-4 w-px bg-white/10 mx-2" />
             {user ? (
@@ -235,6 +236,60 @@ export function LandingPage() {
                  </div>
                  <h3 className="text-lg font-bold text-white mb-3">{f.title}</h3>
                  <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Help / Niche Generators */}
+      <section className="py-20 sm:py-32 px-6 bg-blue-600/5">
+        <div className="max-w-7xl mx-auto text-center space-y-12">
+          <div className="space-y-4">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">Решите проблему мгновенно</h2>
+            <p className="text-slate-400 max-w-xl mx-auto">
+              Узкоспециализированные ИИ-инструменты для самых частых юридических задач. Без подписки.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { 
+                title: 'Для селлеров WB/Ozon', 
+                desc: 'Верните деньги за утерю товара или оспорьте штраф маркетплейса.',
+                link: '/tools/marketplace-claim',
+                price: '490 ₽',
+                icon: Building2
+              },
+              { 
+                title: 'Защита потребителей', 
+                desc: 'Возврат денег за онлайн-курсы, технику или некачественные услуги.',
+                link: '/tools/consumer-claim',
+                price: '299 ₽',
+                icon: Shield
+              },
+              { 
+                title: 'Отмена автоштрафов', 
+                desc: 'Автоматическая жалоба на штрафы ГИБДД, МАДИ и АМПП.',
+                link: '/tools/auto-fine',
+                price: '190 ₽',
+                icon: Gavel
+              }
+            ].map((tool, i) => (
+              <div key={i} className="bg-[#0F172A] p-8 rounded-3xl border border-white/5 hover:border-blue-500/30 transition-all text-left flex flex-col justify-between">
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-6">
+                    <tool.icon className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-3">{tool.title}</h3>
+                  <p className="text-slate-400 text-sm mb-6">{tool.desc}</p>
+                </div>
+                <div className="flex items-center justify-between mt-4">
+                  <span className="text-xl font-bold text-white">{tool.price}</span>
+                  <Link to={tool.link}>
+                    <Button variant="primary" className="h-10 px-4 rounded-lg text-xs font-bold">Выбрать</Button>
+                  </Link>
+                </div>
               </div>
             ))}
           </div>
