@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, update
 from typing import List, Optional
 from pydantic import BaseModel
 import string
 import random
 import os
+import uuid
+import aiofiles
 from datetime import datetime
 from pathlib import Path
 
@@ -17,6 +19,7 @@ from app.models.subscription import Subscription, SubscriptionPlan, Subscription
 from app.models.document import Document
 from app.models.activation_code import ActivationCode
 from app.models.notification import Notification
+from app.models.support_message import SupportMessage
 from app.middleware.auth import get_current_user
 from app.config import settings
 from app.services.usage_limit_service import usage_limit_service
@@ -241,3 +244,141 @@ async def download_backup(
         filename=f"backup_laxly_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.db",
         media_type="application/x-sqlite3"
     )
+
+UPLOAD_DIR = "uploads/support"
+
+@router.get("/support/chats", summary="Список активных чатов поддержки")
+async def list_support_chats(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    # Fetch unique user IDs that have support messages
+    user_ids_res = await db.execute(select(SupportMessage.user_id).distinct())
+    user_ids = [r[0] for r in user_ids_res.all()]
+    
+    chats = []
+    for uid in user_ids:
+        # User details
+        user_res = await db.execute(select(User).where(User.id == uid))
+        user = user_res.scalar_one_or_none()
+        if not user:
+            continue
+            
+        # Subscription plan
+        sub_res = await db.execute(select(Subscription).where(Subscription.user_id == uid))
+        sub = sub_res.scalar_one_or_none()
+        
+        # Last message
+        last_msg_res = await db.execute(
+            select(SupportMessage)
+            .where(SupportMessage.user_id == uid)
+            .order_by(SupportMessage.created_at.desc())
+            .limit(1)
+        )
+        last_msg = last_msg_res.scalar_one_or_none()
+        
+        # Unread count (messages sent by user that support has not read)
+        unread_res = await db.execute(
+            select(func.count(SupportMessage.id))
+            .where(SupportMessage.user_id == uid, SupportMessage.sender == "user", SupportMessage.is_read == False)
+        )
+        unread_count = unread_res.scalar() or 0
+        
+        chats.append({
+            "user_id": uid,
+            "user_email": user.email,
+            "user_name": user.full_name,
+            "user_plan": sub.plan_type if sub else "free",
+            "unread_count": unread_count,
+            "last_message": {
+                "id": last_msg.id,
+                "text": last_msg.text,
+                "image_url": last_msg.image_url,
+                "sender": last_msg.sender,
+                "created_at": last_msg.created_at,
+                "is_read": last_msg.is_read
+            } if last_msg else None
+        })
+        
+    # Sort chats by last message created_at descending
+    chats.sort(key=lambda x: x["last_message"]["created_at"] if x["last_message"] else datetime.min, reverse=True)
+    return chats
+
+@router.get("/support/chats/{user_id}/messages", summary="История сообщений чата")
+async def get_chat_messages(
+    user_id: str,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(SupportMessage)
+        .where(SupportMessage.user_id == user_id)
+        .order_by(SupportMessage.created_at.asc())
+    )
+    messages = result.scalars().all()
+    
+    # Mark messages as read by admin
+    await db.execute(
+        update(SupportMessage)
+        .where(SupportMessage.user_id == user_id, SupportMessage.sender == "user", SupportMessage.is_read == False)
+        .values(is_read=True)
+    )
+    await db.commit()
+    
+    return [{
+        "id": m.id,
+        "text": m.text,
+        "image_url": m.image_url,
+        "sender": m.sender,
+        "created_at": m.created_at,
+        "is_read": m.is_read
+    } for m in messages]
+
+@router.post("/support/chats/{user_id}/message", summary="Отправить сообщение от поддержки")
+async def send_admin_reply(
+    user_id: str,
+    message: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    # Verify user exists
+    user_res = await db.execute(select(User).where(User.id == user_id))
+    user = user_res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+        
+    image_url = None
+    if image:
+        file_ext = os.path.splitext(image.filename)[1]
+        file_name = f"admin_{uuid.uuid4()}{file_ext}"
+        file_path = os.path.join(UPLOAD_DIR, file_name)
+        
+        async with aiofiles.open(file_path, 'wb') as out_file:
+            content = await image.read()
+            await out_file.write(content)
+            
+        image_url = f"/uploads/support/{file_name}"
+        
+    new_reply = SupportMessage(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        text=message,
+        image_url=image_url,
+        sender="support"
+    )
+    db.add(new_reply)
+    await db.commit()
+    
+    return {
+        "status": "ok",
+        "message": "Сообщение отправлено",
+        "data": {
+            "id": new_reply.id,
+            "text": new_reply.text,
+            "image_url": new_reply.image_url,
+            "sender": new_reply.sender,
+            "created_at": new_reply.created_at,
+            "is_read": new_reply.is_read
+        }
+    }

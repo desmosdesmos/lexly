@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   Users, CreditCard, TrendingUp, Shield, Trash2, 
   Search, Filter, Check, X, Loader2, AlertTriangle, 
   ArrowUpRight, BarChart3, Settings, Crown, Key,
   Mail, Megaphone, Database, Activity, ChevronRight,
   Download, Plus, Star, Zap, Terminal, FileText,
-  Send, Clock, Gavel, Globe, MessageSquare
+  Send, Clock, Gavel, Globe, MessageSquare, Headset, Camera
 } from 'lucide-react'
 import { Card, CardBody } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
@@ -24,10 +24,141 @@ export function AdminPanel() {
   const [search, setSearch] = useState('')
   const [updatingUser, setUpdatingUser] = useState(null)
   
+  // Support state
+  const [chats, setChats] = useState([])
+  const [selectedChat, setSelectedChat] = useState(null)
+  const [chatMessages, setChatMessages] = useState([])
+  const [replyText, setReplyText] = useState('')
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [chatsLoading, setChatsLoading] = useState(false)
+  const [messagesLoading, setMessagesLoading] = useState(false)
+  const [replySending, setReplySending] = useState(false)
+  const [chatSearch, setChatSearch] = useState('')
+
+  const fileInputRef = useRef(null)
+  const messagesEndRef = useRef(null)
+  
   // Forms state
   const [promoForm, setPromoGenerate] = useState({ prefix: 'LAXLY', plan_id: 'pro', months: 1, count: 5 })
   const [broadcastForm, setBroadcastForm] = useState({ title: '', message: '', type: 'info' })
   const [submitting, setSubmitting] = useState(false)
+
+  const loadChats = async (silent = false) => {
+    if (!silent) setChatsLoading(true)
+    try {
+      const res = await api.get('/admin/support/chats')
+      if (Array.isArray(res?.data)) {
+        setChats(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to load support chats:', err)
+      if (!silent) toast.error('Не удалось загрузить список чатов')
+    } finally {
+      if (!silent) setChatsLoading(false)
+    }
+  }
+
+  const loadChatMessages = async (userId, silent = false) => {
+    if (!userId) return
+    if (!silent) setMessagesLoading(true)
+    try {
+      const res = await api.get(`/admin/support/chats/${userId}/messages`)
+      if (Array.isArray(res?.data)) {
+        setChatMessages(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to load chat messages:', err)
+      if (!silent) toast.error('Не удалось загрузить историю сообщений')
+    } finally {
+      if (!silent) setMessagesLoading(false)
+    }
+  }
+
+  const handleSendReply = async (e) => {
+    if (e) e.preventDefault()
+    if (!selectedChat || (!replyText.trim() && !selectedImage) || replySending) return
+    
+    const formData = new FormData()
+    if (replyText.trim()) formData.append('message', replyText.trim())
+    if (selectedImage) formData.append('image', selectedImage)
+    
+    const currentMsg = replyText
+    setReplyText('')
+    setSelectedImage(null)
+    setImagePreview(null)
+    setReplySending(true)
+    
+    try {
+      await api.post(`/admin/support/chats/${selectedChat.user_id}/message`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      await loadChatMessages(selectedChat.user_id, true)
+      loadChats(true)
+    } catch (err) {
+      console.error('Failed to send reply:', err)
+      setReplyText(currentMsg)
+      toast.error('Не удалось отправить сообщение')
+    } finally {
+      setReplySending(false)
+    }
+  }
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Файл слишком большой (макс. 5МБ)')
+        return
+      }
+      setSelectedImage(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      try {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      } catch (e) {
+        messagesEndRef.current.scrollIntoView(false)
+      }
+    }
+  }
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (activeTab === 'support' && selectedChat && chatMessages.length > 0) {
+      scrollToBottom()
+    }
+  }, [chatMessages.length, activeTab, selectedChat])
+
+  // Polling for support chats list
+  useEffect(() => {
+    if (activeTab === 'support') {
+      const interval = setInterval(() => {
+        loadChats(true)
+      }, 10000)
+      return () => clearInterval(interval)
+    }
+  }, [activeTab])
+
+  // Polling for selected chat messages
+  useEffect(() => {
+    if (activeTab === 'support' && selectedChat) {
+      loadChatMessages(selectedChat.user_id)
+      const interval = setInterval(() => {
+        loadChatMessages(selectedChat.user_id, true)
+      }, 4000)
+      return () => clearInterval(interval)
+    } else {
+      setChatMessages([])
+    }
+  }, [activeTab, selectedChat?.user_id])
 
   const loadData = async () => {
     setLoading(true)
@@ -52,6 +183,7 @@ export function AdminPanel() {
       console.error('Admin load error:', error)
       toast.error('Ошибка доступа или сервера')
     } finally {
+      loadChats(true)
       setLoading(false)
     }
   }
@@ -128,8 +260,11 @@ export function AdminPanel() {
     { id: 'payments', label: 'Платежи', icon: CreditCard },
     { id: 'promocodes', label: 'Промокоды', icon: Key },
     { id: 'broadcast', label: 'Рассылка', icon: Megaphone },
+    { id: 'support', label: 'Поддержка', icon: Headset },
     { id: 'system', label: 'Система', icon: Database },
   ]
+
+  const totalUnreadSupport = chats.reduce((sum, c) => sum + (c.unread_count || 0), 0)
 
   // Safety for popularity chart
   const popularityValues = stats?.docs_popularity ? Object.values(stats.docs_popularity) : []
@@ -148,18 +283,26 @@ export function AdminPanel() {
         
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/5">
-           {tabs.map(tab => (
-             <button
-               key={tab.id}
-               onClick={() => setActiveTab(tab.id)}
-               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                 activeTab === tab.id ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white/70'
-               }`}
-             >
-               <tab.icon className="w-4 h-4" />
-               <span className="hidden sm:inline">{tab.label}</span>
-             </button>
-           ))}
+           {tabs.map(tab => {
+             const showBadge = tab.id === 'support' && totalUnreadSupport > 0
+             return (
+               <button
+                 key={tab.id}
+                 onClick={() => setActiveTab(tab.id)}
+                 className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all relative ${
+                   activeTab === tab.id ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white/70'
+                 }`}
+               >
+                 <tab.icon className="w-4 h-4" />
+                 <span className="hidden sm:inline">{tab.label}</span>
+                 {showBadge && (
+                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full flex items-center justify-center min-w-[16px] h-[16px]">
+                      {totalUnreadSupport}
+                   </span>
+                 )}
+               </button>
+             )
+           })}
         </div>
       </div>
 
@@ -560,6 +703,247 @@ export function AdminPanel() {
                        </div>
                      ))}
                   </div>
+               </div>
+            </div>
+          )}
+
+          {/* --- SUPPORT TAB --- */}
+          {activeTab === 'support' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[750px] animate-in fade-in duration-500">
+               {/* Chats Sidebar */}
+               <div className="lg:col-span-4 flex flex-col h-full bg-white/[0.01] border border-white/5 rounded-[40px] overflow-hidden">
+                  {/* Search Header */}
+                  <div className="p-6 border-b border-white/5 bg-white/[0.01]">
+                     <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                        <Input 
+                          placeholder="Поиск по имени/email..." 
+                          value={chatSearch}
+                          onChange={(e) => setChatSearch(e.target.value)}
+                          className="pl-11 bg-white/5 border-white/10 rounded-2xl h-12 text-sm"
+                        />
+                     </div>
+                  </div>
+                  
+                  {/* Chats List */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                     {chatsLoading && chats.length === 0 ? (
+                       <div className="h-full flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 text-[#0A84FF] animate-spin" />
+                       </div>
+                     ) : chats.length === 0 ? (
+                       <div className="h-full flex flex-col items-center justify-center p-8 text-center text-white/20">
+                          <MessageSquare className="w-10 h-10 mb-4 opacity-50" />
+                          <p className="text-xs font-bold uppercase tracking-widest">Нет активных чатов</p>
+                       </div>
+                     ) : (
+                       chats
+                         .filter(c => 
+                           (c.user_name || '').toLowerCase().includes(chatSearch.toLowerCase()) ||
+                           (c.user_email || '').toLowerCase().includes(chatSearch.toLowerCase())
+                         )
+                         .map(c => {
+                           const isSelected = selectedChat?.user_id === c.user_id
+                           return (
+                             <button
+                               key={c.user_id}
+                               type="button"
+                               onClick={() => setSelectedChat(c)}
+                               className={`w-full text-left p-4 rounded-3xl border transition-all flex items-start gap-4 relative group ${
+                                 isSelected 
+                                   ? 'bg-white/[0.05] border-white/15 shadow-xl' 
+                                   : 'bg-transparent border-transparent hover:bg-white/[0.02] hover:border-white/5'
+                               }`}
+                             >
+                               <div className="relative flex-shrink-0">
+                                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0A84FF]/10 to-[#5E5CE6]/10 border border-white/5 flex items-center justify-center text-white font-bold text-sm">
+                                     {(c.user_name || c.user_email || '?')[0].toUpperCase()}
+                                  </div>
+                                  {c.unread_count > 0 && (
+                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-[#FF3B30] border-2 border-black rounded-full flex items-center justify-center text-[9px] font-black text-white">
+                                       {c.unread_count}
+                                    </div>
+                                  )}
+                               </div>
+                               <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex items-center justify-between">
+                                     <span className="font-bold text-xs text-white truncate max-w-[70%] group-hover:text-[#0A84FF] transition-colors">
+                                        {c.user_name || 'Пользователь'}
+                                     </span>
+                                     <span className="text-[9px] font-bold text-white/20 uppercase">
+                                        {c.last_message ? new Date(c.last_message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                     </span>
+                                  </div>
+                                  <p className="text-[10px] text-white/40 truncate font-semibold font-mono">{c.user_email}</p>
+                                  <div className="flex items-center justify-between gap-2 mt-1">
+                                     <p className="text-xs text-white/30 truncate flex-1 leading-normal">
+                                        {c.last_message?.sender === 'support' ? <span className="text-[#0A84FF] mr-1">Вы:</span> : ''}
+                                        {c.last_message?.text || (c.last_message?.image_url ? '📎 [Фото]' : '')}
+                                     </p>
+                                     <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border flex-shrink-0 ${
+                                       c.user_plan === 'enterprise' ? 'text-purple-400 border-purple-500/20 bg-purple-500/5' :
+                                       c.user_plan === 'business' ? 'text-amber-500 border-amber-500/20 bg-amber-500/5' :
+                                       c.user_plan === 'pro' ? 'text-[#0A84FF] border-[#0A84FF]/20 bg-[#0A84FF]/5' :
+                                       'text-white/20 border-white/5 bg-white/5'
+                                     }`}>
+                                        {c.user_plan}
+                                     </span>
+                                  </div>
+                               </div>
+                             </button>
+                           )
+                         })
+                     )}
+                  </div>
+               </div>
+               
+               {/* Chat Detail / Messages History */}
+               <div className="lg:col-span-8 flex flex-col h-full bg-white/[0.01] border border-white/5 rounded-[40px] overflow-hidden relative">
+                  {selectedChat ? (
+                    <div className="flex flex-col h-full">
+                       {/* Chat Header */}
+                       <div className="p-6 border-b border-white/5 bg-white/[0.01] flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                             <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0A84FF]/20 to-[#5E5CE6]/20 border border-white/10 flex items-center justify-center text-white font-bold text-base shadow-xl">
+                                {(selectedChat.user_name || selectedChat.user_email || '?')[0].toUpperCase()}
+                             </div>
+                             <div>
+                                <h4 className="font-bold text-sm text-white">{selectedChat.user_name || 'Пользователь'}</h4>
+                                <p className="text-xs text-white/30 font-medium mt-0.5 font-mono">{selectedChat.user_email}</p>
+                             </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-3">
+                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+                               selectedChat.user_plan === 'enterprise' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' :
+                               selectedChat.user_plan === 'business' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' :
+                               selectedChat.user_plan === 'pro' ? 'bg-[#0A84FF]/10 text-[#0A84FF] border-[#0A84FF]/20' :
+                               'bg-white/5 text-white/20 border-white/5'
+                             }`}>
+                                Тариф: {selectedChat.user_plan}
+                             </span>
+                          </div>
+                       </div>
+                       
+                       {/* Messages View */}
+                       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-black/10">
+                          {messagesLoading && chatMessages.length === 0 ? (
+                            <div className="h-full flex items-center justify-center">
+                               <Loader2 className="w-8 h-8 text-[#0A84FF] animate-spin" />
+                            </div>
+                          ) : (
+                            chatMessages.map(msg => (
+                              <div key={msg.id} className={`flex flex-col ${msg.sender === 'support' ? 'items-end' : 'items-start'}`}>
+                                 <div className={`max-w-[75%] p-4 rounded-[24px] shadow-sm relative group border ${
+                                   msg.sender === 'support' 
+                                     ? 'bg-[#0A84FF] border-[#0A84FF]/20 text-white rounded-tr-none shadow-[#0A84FF]/10' 
+                                     : 'bg-white/[0.02] border-white/5 text-slate-200 rounded-tl-none'
+                                 }`}>
+                                    {msg.image_url && (
+                                      <div className="mb-2 rounded-xl overflow-hidden border border-white/10 shadow-inner group">
+                                         <img 
+                                           src={msg.image_url} 
+                                           alt="Attachment" 
+                                           className="max-w-full max-h-[300px] object-cover cursor-zoom-in hover:scale-[1.02] transition-transform duration-500"
+                                           onClick={() => window.open(msg.image_url, '_blank')}
+                                         />
+                                      </div>
+                                    )}
+                                    {msg.text && <p className="whitespace-pre-wrap break-words text-sm font-medium leading-relaxed font-sans">{msg.text}</p>}
+                                 </div>
+                                 <div className="flex items-center gap-1.5 mt-1.5 px-2">
+                                    <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest">
+                                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                    {msg.sender === 'support' && (
+                                      <span className="text-[9px] font-bold text-white/10 uppercase tracking-widest">
+                                         · {msg.is_read ? 'Прочитано' : 'Отправлено'}
+                                      </span>
+                                    )}
+                                 </div>
+                              </div>
+                            ))
+                          )}
+                          <div ref={messagesEndRef} />
+                       </div>
+                       
+                       {/* Image Preview */}
+                       {imagePreview && (
+                         <div className="px-6 py-4 bg-white/[0.02] border-t border-white/5 flex items-center gap-4">
+                            <div className="relative w-16 h-16 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
+                               <img src={imagePreview} className="w-full h-full object-cover" alt="Preview" />
+                               <button 
+                                 type="button"
+                                 onClick={() => {setSelectedImage(null); setImagePreview(null)}}
+                                 className="absolute top-1 right-1 bg-black/80 rounded-full p-1 text-white hover:bg-red-500 transition-colors"
+                               >
+                                  <X className="w-3 h-3" />
+                               </button>
+                            </div>
+                            <div className="flex-1">
+                               <p className="text-white text-xs font-bold truncate">{selectedImage.name}</p>
+                               <p className="text-[#0A84FF] text-[10px] font-black uppercase tracking-wider mt-1">Прикреплено изображение</p>
+                            </div>
+                         </div>
+                       )}
+                       
+                       {/* Chat Input */}
+                       <form onSubmit={handleSendReply} className="p-6 bg-white/[0.01] border-t border-white/5">
+                          <div className="flex items-end gap-4 bg-white/[0.02] border border-white/5 rounded-3xl p-3 focus-within:border-[#0A84FF]/30 transition-all">
+                             <button
+                               type="button"
+                               onClick={() => fileInputRef.current?.click()}
+                               className="w-11 h-11 rounded-2xl hover:bg-white/5 flex items-center justify-center text-white/30 hover:text-white/70 transition-all active:scale-95 flex-shrink-0"
+                             >
+                                <Camera className="w-5 h-5" />
+                             </button>
+                             <input 
+                               type="file" 
+                               ref={fileInputRef} 
+                               onChange={handleImageChange} 
+                               accept="image/*" 
+                               className="hidden" 
+                             />
+                             
+                             <textarea
+                               rows="1"
+                               value={replyText}
+                               onChange={(e) => {
+                                 setReplyText(e.target.value)
+                                 e.target.style.height = 'auto'
+                                 e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'
+                               }}
+                               onKeyDown={(e) => {
+                                 if (e.key === 'Enter' && !e.shiftKey) {
+                                   e.preventDefault()
+                                   handleSendReply(e)
+                                 }
+                               }}
+                               placeholder="Напишите ответ..."
+                               className="flex-1 bg-transparent border-none px-1 py-3 text-sm text-white placeholder-white/20 focus:ring-0 resize-none max-h-[100px] custom-scrollbar font-medium font-sans"
+                             />
+                             
+                             <button
+                               type="submit"
+                               disabled={(!replyText.trim() && !selectedImage) || replySending}
+                               className="w-11 h-11 rounded-2xl bg-white disabled:bg-white/10 text-black disabled:text-white/20 flex items-center justify-center disabled:scale-95 active:scale-95 transition-all flex-shrink-0 shadow-xl"
+                             >
+                                {replySending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                             </button>
+                          </div>
+                       </form>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full p-8 text-center text-white/20">
+                       <div className="w-24 h-24 rounded-[35px] bg-white/[0.02] border border-white/5 flex items-center justify-center mb-6 shadow-2xl">
+                          <MessageSquare className="w-10 h-10 opacity-40 text-white" />
+                       </div>
+                       <h4 className="text-white font-bold text-base mb-2">Обращения в поддержку</h4>
+                       <p className="text-white/40 text-xs font-semibold uppercase tracking-widest max-w-xs mx-auto leading-relaxed">
+                          Выберите чат из левого списка для начала переписки с пользователем
+                       </p>
+                    </div>
+                  )}
                </div>
             </div>
           )}
