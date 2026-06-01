@@ -51,6 +51,7 @@ export function LandingPage() {
           <div className="hidden md:flex items-center gap-8">
             <a href="#how-it-works" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Как это работает</a>
             <a href="#features" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Возможности</a>
+            <a href="#quick-tools" className="text-sm font-bold text-blue-400 hover:text-blue-300 transition-colors">Разовые решения</a>
             <Link to="/blog" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">База знаний</Link>
             <a href="#tariffs" className="text-sm font-medium text-slate-400 hover:text-white transition-colors">Тарифы</a>
             <div className="h-4 w-px bg-white/10 mx-2" />
@@ -82,6 +83,8 @@ export function LandingPage() {
           <div className="md:hidden absolute top-full left-0 right-0 bg-[#0B0F19] border-b border-white/5 py-8 px-6 flex flex-col gap-6 animate-in slide-in-from-top duration-300">
             <a href="#how-it-works" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium text-slate-300">Как это работает</a>
             <a href="#features" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium text-slate-300">Возможности</a>
+            <a href="#quick-tools" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium text-blue-400">Быстрые решения (БЕЗ ПОДПИСКИ)</a>
+            <Link to="/blog" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium text-slate-300">База знаний</Link>
             <a href="#tariffs" onClick={() => setIsMenuOpen(false)} className="text-lg font-medium text-slate-300">Тарифы</a>
             <div className="h-px bg-white/5" />
             {user ? (
@@ -243,7 +246,7 @@ export function LandingPage() {
       </section>
 
       {/* Quick Help / Niche Generators */}
-      <section className="py-20 sm:py-32 px-6 bg-blue-600/5">
+      <section id="quick-tools" className="py-20 sm:py-32 px-6 bg-blue-600/5">
         <div className="max-w-7xl mx-auto text-center space-y-12">
           <div className="space-y-4">
             <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">Решите проблему мгновенно</h2>
