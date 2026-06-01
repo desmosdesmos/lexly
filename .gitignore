@@ -9,3 +9,7 @@ __pycache__/
 law_ai.db  
 token.txt  
 backend/.env  
+deploy/.env.prod
+deploy/.env
+temp.js
+temp_html.txt
