@@ -1,5 +1,5 @@
 // Simple Service Worker for PWA
-const CACHE_NAME = 'laxly-v2'; // Updated version
+const CACHE_NAME = 'laxly-v3'; // Updated version
 const ASSETS = [
   '/',
   '/index.html',
