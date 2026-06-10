@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, ArrowRight, Check, Loader2 } from 'lucide-react'
 import { Logo } from '../components/ui/Logo'
