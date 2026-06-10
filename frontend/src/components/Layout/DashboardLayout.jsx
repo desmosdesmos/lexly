@@ -33,7 +33,7 @@ export function DashboardLayout() {
   const { user, logout } = useAuth()
   const { mode, toggleMode } = useThemeMode()
 
-  const isAdmin = user?.email === 'yan.pashhenko6486@gmail.com' || user?.email === 'desmosymail@gmail.com'
+  const isAdmin = user?.email === 'yan.pashhenko6486@gmail.com' || user?.email === 'desmosymail@gmail.com' || user?.email === 'desmosmail@yandex.ru'
 
   const menuItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Обзор', exact: true },
