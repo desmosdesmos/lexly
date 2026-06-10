@@ -67,13 +67,18 @@ export function PrivacyPolicy() {
               Сервис использует файлы cookie для обеспечения безопасности сессий и аналитики (Яндекс.Метрика). Вы можете управлять настройками cookie через всплывающее уведомление при первом входе на сайт или в настройках браузера.
             </p>
 
-            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">8. Контакты и отзыв согласия</h2>
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">8. Рекомендательные технологии</h2>
+            <p className="text-white/60 leading-relaxed mb-6">
+              Сервис не применяет рекомендательные технологии (информационные технологии предоставления информации на основе сбора, систематизации и анализа сведений, относящихся к предпочтениям пользователей сети «Интернет», находящихся на территории Российской Федерации).
+            </p>
+
+            <h2 className="text-xl font-semibold mb-4 text-[#0A84FF]">9. Контакты и отзыв согласия</h2>
             <p className="text-white/60 leading-relaxed mb-4">
               По всем вопросам, связанным с персональными данными, а также для отзыва согласия, пишите нам:
             </p>
             <div className="p-4 rounded-xl bg-white/[0.04] border border-white/[0.08]">
               <p className="text-white/80"><strong>Email:</strong> desmosymail@gmail.com</p>
-              <p className="text-white/80"><strong>Оператор:</strong> Пащенко Е.В.</p>
+              <p className="text-white/80"><strong>Оператор:</strong> Пащенко Я.В.</p>
             </div>
           </CardBody>
         </Card>

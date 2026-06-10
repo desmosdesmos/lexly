@@ -59,8 +59,18 @@ export const AuthProvider = ({ children }) => {
     return userData
   }
 
-  const googleLogin = async (credential) => {
-    const data = await authAPI.googleAuth(credential)
+  const yandexLogin = async (code) => {
+    const data = await authAPI.yandexAuth(code)
+    localStorage.setItem('access_token', data.access_token)
+    localStorage.setItem('refresh_token', data.refresh_token)
+    setToken(data.access_token)
+    const userData = await authAPI.getProfile()
+    setUser(userData)
+    return userData
+  }
+
+  const vkLogin = async (code, redirectUri) => {
+    const data = await authAPI.vkAuth(code, redirectUri)
     localStorage.setItem('access_token', data.access_token)
     localStorage.setItem('refresh_token', data.refresh_token)
     setToken(data.access_token)
@@ -80,7 +90,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
-  const value = { user, token, loading, login, googleLogin, register, logout }
+  const value = { user, token, loading, login, yandexLogin, vkLogin, register, logout }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

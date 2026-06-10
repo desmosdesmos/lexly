@@ -351,6 +351,7 @@ export function LandingPage() {
           <div className="flex flex-wrap justify-center gap-10 text-xs font-semibold text-slate-400">
              <Link to="/terms" className="hover:text-white transition-colors">Условия</Link>
              <Link to="/privacy" className="hover:text-white transition-colors">Приватность</Link>
+             <Link to="/recommendations" className="hover:text-white transition-colors">Рекомендации</Link>
              <a href="#" className="hover:text-white transition-colors">Помощь</a>
           </div>
           

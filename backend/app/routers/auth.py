@@ -246,82 +246,249 @@ class GoogleAuthRequest(BaseModel):
 
 @router.post(
     "/google",
-    response_model=TokenResponse,
-    summary="Вход через Google",
+    status_code=status.HTTP_403_FORBIDDEN,
+    summary="Вход через Google (Отключен)",
 )
-async def google_login(request: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+async def google_login():
     """
-    Вход или регистрация через Google OAuth2.
+    Вход через Google отключен в соответствии с законодательством РФ (149-ФЗ).
     """
-    try:
-        from google.oauth2 import id_token as google_id_token
-        from google.auth.transport import requests as google_requests
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Вход через зарубежные сервисы авторизации (Google) отключен в соответствии с требованиями Федерального закона № 149-ФЗ. Используйте вход по email или отечественные сервисы.",
+    )
 
-        idinfo = google_id_token.verify_oauth2_token(
-            request.credential, google_requests.Request(), settings.GOOGLE_CLIENT_ID
-        )
 
-        email = idinfo.get("email")
-        full_name = idinfo.get("name", "")
+class YandexAuthRequest(BaseModel):
+    code: str
 
-        if not email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Не удалось получить email из Google",
-            )
 
-        # Проверка, существует ли пользователь
-        result = await db.execute(select(User).where(User.email == email))
-        user = result.scalar_one_or_none()
-
-        if user:
-            # Существующий пользователь
-            if not user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Учётная запись деактивирована",
-                )
-        else:
-            # Новый пользователь через Google
-            user = User(
-                id=str(uuid.uuid4()),
-                email=email,
-                password_hash="",
-                full_name=full_name,
-                user_type="individual",
-                email_verified=1,
-                is_active=1,
-            )
-            db.add(user)
-            await db.flush()
-
-            subscription = Subscription(user_id=user.id, plan_type="free", status="active")
-            db.add(subscription)
-            usage_limit = UsageLimit(user_id=user.id, plan_type="free", max_documents=2, max_contracts=2)
-            db.add(usage_limit)
-            await db.commit()
-            await db.refresh(user)
-
-        access_token = create_access_token(data={"sub": str(user.id)})
-        refresh_token = create_refresh_token(data={"sub": str(user.id)})
-
-        return TokenResponse(
-            access_token=access_token,
-            refresh_token=refresh_token,
-            token_type="bearer",
-            expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        )
-
-    except ImportError:
+@router.post(
+    "/yandex",
+    response_model=TokenResponse,
+    summary="Вход через Яндекс ID",
+)
+async def yandex_login(request: YandexAuthRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Вход или регистрация через Яндекс ID (149-ФЗ).
+    """
+    if not settings.YANDEX_CLIENT_ID or not settings.YANDEX_CLIENT_SECRET:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Google OAuth не настроен. Установите google-auth.",
+            detail="Авторизация через Яндекс не настроена на сервере.",
         )
-    except Exception as e:
+
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://oauth.yandex.ru/token",
+                data={
+                    "grant_type": "authorization_code",
+                    "code": request.code,
+                    "client_id": settings.YANDEX_CLIENT_ID,
+                    "client_secret": settings.YANDEX_CLIENT_SECRET,
+                },
+                timeout=10.0,
+            )
+            
+            if token_resp.status_code != 200:
+                logger.error(f"Yandex token error: {token_resp.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Не удалось получить токен доступа от Яндекс",
+                )
+            
+            token_data = token_resp.json()
+            access_token_yandex = token_data.get("access_token")
+            
+            profile_resp = await client.get(
+                "https://login.yandex.ru/info?format=json",
+                headers={"Authorization": f"OAuth {access_token_yandex}"},
+                timeout=10.0,
+            )
+            
+            if profile_resp.status_code != 200:
+                logger.error(f"Yandex profile error: {profile_resp.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Не удалось получить данные профиля Яндекс",
+                )
+                
+            profile_data = profile_resp.json()
+            email = profile_data.get("default_email") or (profile_data.get("emails")[0] if profile_data.get("emails") else None)
+            full_name = profile_data.get("display_name") or profile_data.get("real_name") or "Пользователь Яндекс"
+            
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось получить email из Яндекс профиля",
+                )
+                
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+            
+            if user:
+                if not user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Учётная запись деактивирована",
+                    )
+            else:
+                user = User(
+                    id=str(uuid.uuid4()),
+                    email=email,
+                    password_hash="",
+                    full_name=full_name,
+                    user_type="individual",
+                    email_verified=True,
+                    is_active=True,
+                )
+                db.add(user)
+                await db.flush()
+                
+                subscription = Subscription(user_id=user.id, plan_type="free", status="active")
+                db.add(subscription)
+                usage_limit = UsageLimit(user_id=user.id, plan_type="free", max_documents=2, max_contracts=2)
+                db.add(usage_limit)
+                await db.commit()
+                await db.refresh(user)
+                
+            access_token = create_access_token(data={"sub": str(user.id)})
+            refresh_token = create_refresh_token(data={"sub": str(user.id)})
+            
+            return TokenResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer",
+                expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            )
+            
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP request to Yandex failed: {e}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Ошибка Google авторизации: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка соединения с сервисом Яндекс: {str(e)}",
         )
+
+
+class VkAuthRequest(BaseModel):
+    code: str
+    redirect_uri: str
+
+
+@router.post(
+    "/vk",
+    response_model=TokenResponse,
+    summary="Вход через VK ID",
+)
+async def vk_login(request: VkAuthRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Вход или регистрация через VK ID (149-ФЗ).
+    """
+    if not settings.VK_CLIENT_ID or not settings.VK_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Авторизация через VK не настроена на сервере.",
+        )
+
+    import httpx
+    try:
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://oauth.vk.com/access_token",
+                params={
+                    "client_id": settings.VK_CLIENT_ID,
+                    "client_secret": settings.VK_CLIENT_SECRET,
+                    "redirect_uri": request.redirect_uri,
+                    "code": request.code,
+                },
+                timeout=10.0,
+            )
+            
+            if token_resp.status_code != 200:
+                logger.error(f"VK token error: {token_resp.text}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Не удалось получить токен доступа от VK",
+                )
+            
+            token_data = token_resp.json()
+            access_token_vk = token_data.get("access_token")
+            email = token_data.get("email")
+            user_id = token_data.get("user_id")
+            
+            if not email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось получить email из профиля VK. Проверьте права доступа.",
+                )
+                
+            profile_resp = await client.get(
+                "https://api.vk.com/method/users.get",
+                params={
+                    "user_ids": user_id,
+                    "fields": "first_name,last_name",
+                    "access_token": access_token_vk,
+                    "v": "5.131",
+                },
+                timeout=10.0,
+            )
+            
+            full_name = "Пользователь VK"
+            if profile_resp.status_code == 200:
+                p_data = profile_resp.json().get("response", [])
+                if p_data:
+                    first_name = p_data[0].get("first_name", "")
+                    last_name = p_data[0].get("last_name", "")
+                    full_name = f"{first_name} {last_name}".strip() or "Пользователь VK"
+            
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+            
+            if user:
+                if not user.is_active:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Учётная запись деактивирована",
+                    )
+            else:
+                user = User(
+                    id=str(uuid.uuid4()),
+                    email=email,
+                    password_hash="",
+                    full_name=full_name,
+                    user_type="individual",
+                    email_verified=True,
+                    is_active=True,
+                )
+                db.add(user)
+                await db.flush()
+                
+                subscription = Subscription(user_id=user.id, plan_type="free", status="active")
+                db.add(subscription)
+                usage_limit = UsageLimit(user_id=user.id, plan_type="free", max_documents=2, max_contracts=2)
+                db.add(usage_limit)
+                await db.commit()
+                await db.refresh(user)
+                
+            access_token = create_access_token(data={"sub": str(user.id)})
+            refresh_token = create_refresh_token(data={"sub": str(user.id)})
+            
+            return TokenResponse(
+                access_token=access_token,
+                refresh_token=refresh_token,
+                token_type="bearer",
+                expires_in=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            )
+            
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP request to VK failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка соединения с сервисом VK: {str(e)}",
+        )
+
 
 
 # ========== Восстановление пароля ==========

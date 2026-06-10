@@ -79,8 +79,16 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
 
-    # Google OAuth
+    # Google OAuth (Deprecated under 149-FZ)
     GOOGLE_CLIENT_ID: str = ""
+
+    # Yandex OAuth
+    YANDEX_CLIENT_ID: str = ""
+    YANDEX_CLIENT_SECRET: str = ""
+
+    # VK OAuth
+    VK_CLIENT_ID: str = ""
+    VK_CLIENT_SECRET: str = ""
 
     # YooKassa
     YOOKASSA_SHOP_ID: str = "1360639"

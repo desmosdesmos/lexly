@@ -201,6 +201,7 @@ export function DashboardLayout() {
                 <div className="flex gap-6">
                   <Link to="/privacy" className="hover:text-[var(--accent)]">Политика ПДн</Link>
                   <Link to="/terms" className="hover:text-[var(--accent)]">Оферта</Link>
+                  <Link to="/recommendations" className="hover:text-[var(--accent)]">Рекомендации</Link>
                   <span className="hidden md:inline">Пащенко Я.В., ИНН 644010686500</span>
                 </div>
                 <div className="flex gap-6 opacity-40">

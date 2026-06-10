@@ -20,6 +20,7 @@ import { Drive } from './pages/Drive'
 import { AdminPanel } from './pages/AdminPanel'
 import { PrivacyPolicy } from './pages/PrivacyPolicy'
 import { TermsOfService } from './pages/TermsOfService'
+import { RecommendationPolicy } from './pages/RecommendationPolicy'
 import { NotFound } from './pages/NotFound'
 import { useAuth } from './context/AuthContext'
 import { Loader } from './components/ui/Loader'
@@ -53,6 +54,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/recommendations" element={<RecommendationPolicy />} />
 
         {/* Dashboard routes */}
         <Route path="/dashboard" element={user ? <DashboardLayout /> : <Navigate to="/login" />}>
