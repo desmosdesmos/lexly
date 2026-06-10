@@ -12,19 +12,13 @@ const YandexIcon = () => (
   </svg>
 )
 
-const VkIcon = () => (
-  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M15.025 2H8.975C4.025 2 2 4.025 2 8.975v6.05C2 19.975 4.025 22 8.975 22h6.05C19.975 22 22 19.975 22 15.025v-6.05C22 4.025 19.975 2 15.025 2zm3.84 12.385c.575.56 1.19 1.07 1.83 1.545.31.23.615.44.895.66.455.355.67.625.595 1.045-.09.5-.6.545-1.02.55h-2.58c-.83 0-1.505-.175-2.07-.635-.435-.35-.82-.78-1.215-1.2-.295-.315-.595-.625-.92-.76-.32-.135-.615-.09-.905.15-.465.385-.59.955-.63 1.575-.03.46-.145.75-.62.835-.91.165-1.84.14-2.735-.115-1.635-.47-2.91-1.485-3.99-2.79C3.42 12.16 2.19 9.38.98 6.55c-.215-.505-.07-.77.48-.775H4.1c.425 0 .73.195.895.59 1.055 2.505 2.455 4.8 4.415 6.72.18.175.385.35.61.435.34.125.56.01.685-.34.195-.545.285-1.12.29-1.705.01-1.46-.35-2.095-1.505-2.225-.335-.04-.265-.21-.115-.355.22-.215.58-.335 1.085-.335h3.69c.5 0 .735.25.795.78.115 1.03.11 2.065-.105 3.085-.075.355.07.565.41.6.28.03.525-.095.735-.295 1.405-1.355 2.39-3.09 3.255-4.925.17-.365.41-.53.82-.53h2.645c.675 0 .825.29.695.84-.33 1.4-1.25 2.56-2.14 3.73-.42.55-.86 1.085-1.27 1.645-.315.43-.285.73.09 1.13z"/>
-  </svg>
-)
-
 export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
-  const { login, yandexLogin, vkLogin } = useAuth()
+  const { login, yandexLogin } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -35,33 +29,25 @@ export function LoginPage() {
     if (!provider) {
       if (window.location.pathname.includes('/auth/yandex')) {
         provider = 'yandex'
-      } else if (window.location.pathname.includes('/auth/vk')) {
-        provider = 'vk'
       }
     }
 
-    if (code && provider) {
-      handleOAuthCallback(code, provider)
+    if (code && provider === 'yandex') {
+      handleOAuthCallback(code)
     }
   }, [])
 
-  const handleOAuthCallback = async (code, provider) => {
+  const handleOAuthCallback = async (code) => {
     setLoading(true)
     setError('')
     try {
-      if (provider === 'yandex') {
-        await yandexLogin(code)
-        toast.success('Вход через Яндекс выполнен!')
-      } else if (provider === 'vk') {
-        const redirectUri = `${window.location.origin}/auth/vk`
-        await vkLogin(code, redirectUri)
-        toast.success('Вход через VK выполнен!')
-      }
+      await yandexLogin(code)
+      toast.success('Вход через Яндекс выполнен!')
       navigate('/dashboard')
     } catch (err) {
       console.error(err)
       const msg = err.response?.data?.detail
-      setError(typeof msg === 'string' ? msg : `Ошибка входа через ${provider === 'yandex' ? 'Яндекс' : 'VK'}`)
+      setError(typeof msg === 'string' ? msg : 'Ошибка входа через Яндекс')
     } finally {
       setLoading(false)
     }
@@ -78,19 +64,6 @@ export function LoginPage() {
     }
     const redirectUri = encodeURIComponent(`${window.location.origin}/auth/yandex`)
     window.location.href = `https://oauth.yandex.ru/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`
-  }
-
-  const handleVkLogin = () => {
-    const clientId = import.meta.env.VITE_VK_CLIENT_ID
-    if (!clientId) {
-      toast.info('Вход в демо-режиме VK ID (ключи не настроены)...')
-      setTimeout(() => {
-        window.location.href = `${window.location.origin}/auth/vk?code=mock_vk_code`
-      }, 800)
-      return
-    }
-    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/vk`)
-    window.location.href = `https://oauth.vk.com/authorize?client_id=${clientId}&display=page&redirect_uri=${redirectUri}&scope=email&response_type=code&v=5.131`
   }
 
   const handleSubmit = async (e) => {

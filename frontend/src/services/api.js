@@ -19,7 +19,7 @@ api.interceptors.request.use((config) => {
 })
 
 // Interceptor для обработки ошибок — НЕ редиректит на auth-эндпоинтах
-const authPaths = ['/auth/login', '/auth/register', '/auth/yandex', '/auth/vk', '/auth/refresh', '/auth/forgot-password', '/auth/reset-password']
+const authPaths = ['/auth/login', '/auth/register', '/auth/yandex', '/auth/refresh', '/auth/forgot-password', '/auth/reset-password']
 
 api.interceptors.response.use(
   (response) => response,
@@ -64,10 +64,7 @@ export const authAPI = {
     return response.data
   },
 
-  vkAuth: async (code, redirectUri) => {
-    const response = await api.post('/auth/vk', { code, redirect_uri: redirectUri })
-    return response.data
-  },
+
 
   forgotPassword: async (email) => {
     const response = await api.post('/auth/forgot-password', { email })

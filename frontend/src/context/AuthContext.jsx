@@ -69,16 +69,6 @@ export const AuthProvider = ({ children }) => {
     return userData
   }
 
-  const vkLogin = async (code, redirectUri) => {
-    const data = await authAPI.vkAuth(code, redirectUri)
-    localStorage.setItem('access_token', data.access_token)
-    localStorage.setItem('refresh_token', data.refresh_token)
-    setToken(data.access_token)
-    const userData = await authAPI.getProfile()
-    setUser(userData)
-    return userData
-  }
-
   const register = async (userData) => {
     return await authAPI.register(userData)
   }
@@ -90,7 +80,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
-  const value = { user, token, loading, login, yandexLogin, vkLogin, register, logout }
+  const value = { user, token, loading, login, yandexLogin, register, logout }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
