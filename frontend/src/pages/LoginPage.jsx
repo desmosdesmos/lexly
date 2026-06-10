@@ -30,7 +30,15 @@ export function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
-    const provider = params.get('provider')
+    let provider = params.get('provider')
+
+    if (!provider) {
+      if (window.location.pathname.includes('/auth/yandex')) {
+        provider = 'yandex'
+      } else if (window.location.pathname.includes('/auth/vk')) {
+        provider = 'vk'
+      }
+    }
 
     if (code && provider) {
       handleOAuthCallback(code, provider)
@@ -45,7 +53,7 @@ export function LoginPage() {
         await yandexLogin(code)
         toast.success('Вход через Яндекс выполнен!')
       } else if (provider === 'vk') {
-        const redirectUri = `${window.location.origin}/login?provider=vk`
+        const redirectUri = `${window.location.origin}/auth/vk`
         await vkLogin(code, redirectUri)
         toast.success('Вход через VK выполнен!')
       }
@@ -64,11 +72,11 @@ export function LoginPage() {
     if (!clientId) {
       toast.info('Вход в демо-режиме Яндекс ID (ключи не настроены)...')
       setTimeout(() => {
-        window.location.href = `${window.location.origin}/login?provider=yandex&code=mock_yandex_code`
+        window.location.href = `${window.location.origin}/auth/yandex?code=mock_yandex_code`
       }, 800)
       return
     }
-    const redirectUri = encodeURIComponent(`${window.location.origin}/login?provider=yandex`)
+    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/yandex`)
     window.location.href = `https://oauth.yandex.ru/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}`
   }
 
@@ -77,11 +85,11 @@ export function LoginPage() {
     if (!clientId) {
       toast.info('Вход в демо-режиме VK ID (ключи не настроены)...')
       setTimeout(() => {
-        window.location.href = `${window.location.origin}/login?provider=vk&code=mock_vk_code`
+        window.location.href = `${window.location.origin}/auth/vk?code=mock_vk_code`
       }, 800)
       return
     }
-    const redirectUri = encodeURIComponent(`${window.location.origin}/login?provider=vk`)
+    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/vk`)
     window.location.href = `https://oauth.vk.com/authorize?client_id=${clientId}&display=page&redirect_uri=${redirectUri}&scope=email&response_type=code&v=5.131`
   }
 

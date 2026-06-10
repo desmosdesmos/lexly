@@ -48,6 +48,8 @@ function App() {
         <Route path="/tools/consumer-claim" element={<Navigate to="/dashboard/documents" />} />
         <Route path="/tools/auto-fine" element={<Navigate to="/dashboard/documents" />} />
         <Route path="/login" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
+        <Route path="/auth/yandex" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
+        <Route path="/auth/vk" element={!user ? <LoginPage /> : <Navigate to="/dashboard" />} />
         <Route path="/register" element={!user ? <RegisterPage /> : <Navigate to="/dashboard" />} />
         <Route path="/verify-email" element={!user ? <VerifyEmailPage /> : <Navigate to="/dashboard" />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
