@@ -159,23 +159,15 @@ export function RegisterPage() {
 
         {/* Card */}
         <div className="bg-[rgba(28,28,30,0.5)] backdrop-blur-[32px] border border-white/[0.06] rounded-[22px] shadow-[0_4px_24px_rgba(0,0,0,0.3)] p-8">
-          {/* Russian OAuth Providers (149-ФЗ Compliant) */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          {/* Yandex OAuth Provider (149-ФЗ Compliant) */}
+          <div className="mb-6">
             <button
               type="button"
               onClick={handleYandexLogin}
-              className="flex items-center justify-center py-3 px-4 rounded-xl bg-white text-black font-semibold text-sm hover:bg-slate-100 active:scale-[0.98] transition-all border border-slate-200"
+              className="w-full flex items-center justify-center py-3.5 px-4 rounded-xl bg-white text-black font-semibold text-sm hover:bg-slate-100 active:scale-[0.98] transition-all border border-slate-200"
             >
               <YandexIcon />
-              Яндекс
-            </button>
-            <button
-              type="button"
-              onClick={handleVkLogin}
-              className="flex items-center justify-center py-3 px-4 rounded-xl bg-[#0077FF] text-white font-semibold text-sm hover:bg-[#0066DD] active:scale-[0.98] transition-all"
-            >
-              <VkIcon />
-              ВКонтакте
+              Зарегистрироваться через Яндекс ID
             </button>
           </div>
 
