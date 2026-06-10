@@ -51,36 +51,15 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Fetch user from database using parameterized query
-    from sqlalchemy import text
-    
-    result = await db.execute(
-        text("SELECT id, email, password_hash, full_name, user_type, phone, company_name, company_inn, is_active, email_verified, created_at, updated_at FROM users WHERE id = :user_id"),
-        {"user_id": user_id}
-    )
-    user_row = result.fetchone()
+    # Fetch user from database using SQLAlchemy ORM (includes ALL columns)
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
 
-    if user_row is None:
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Пользователь не найден",
         )
-
-    # Create a simple dict-based user object
-    user = type('User', (), {
-        'id': user_row[0],
-        'email': user_row[1],
-        'password_hash': user_row[2],
-        'full_name': user_row[3],
-        'user_type': user_row[4],
-        'phone': user_row[5],
-        'company_name': user_row[6],
-        'company_inn': user_row[7],
-        'is_active': user_row[8],
-        'email_verified': user_row[9],
-        'created_at': user_row[10],
-        'updated_at': user_row[11],
-    })()
 
     if not user.is_active:
         raise HTTPException(
