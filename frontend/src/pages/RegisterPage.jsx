@@ -7,9 +7,13 @@ import { toast } from 'react-toastify'
 import { Logo } from '../components/ui/Logo'
 
 const YandexIcon = () => (
-  <svg className="w-5 h-5 mr-2" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="50" cy="50" r="50" fill="#FC3F1D"/>
-    <path d="M56.4 75H47.1V39.4L33.7 66.8H26.3L42.5 35.1L30.9 23H40.2V51.6L52.8 23H60.2L47.7 50L60.9 75H56.4Z" fill="white"/>
+  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="12" fill="#FC3F1D"/>
+    <path 
+      d="M16.376 12.644L21 2h-3.842l-4.624 10.644h3.842zM13.915 24v-3.733c0-2.822-.352-3.64-1.407-5.988L6.933 2H3l7.124 15.709V24h3.79z" 
+      fill="white" 
+      transform="translate(4.8, 4.8) scale(0.6)"
+    />
   </svg>
 )
 
