@@ -122,7 +122,10 @@ export function RegisterPage() {
   const handleYandexLogin = () => {
     const clientId = import.meta.env.VITE_YANDEX_CLIENT_ID
     if (!clientId) {
-      toast.info('Вход через Яндекс ID временно не настроен.')
+      toast.info('Регистрация в демо-режиме Яндекс ID (ключи не настроены)...')
+      setTimeout(() => {
+        window.location.href = `${window.location.origin}/login?provider=yandex&code=mock_yandex_code`
+      }, 800)
       return
     }
     const redirectUri = encodeURIComponent(`${window.location.origin}/login?provider=yandex`)
@@ -132,7 +135,10 @@ export function RegisterPage() {
   const handleVkLogin = () => {
     const clientId = import.meta.env.VITE_VK_CLIENT_ID
     if (!clientId) {
-      toast.info('Вход через VK ID временно не настроен.')
+      toast.info('Регистрация в демо-режиме VK ID (ключи не настроены)...')
+      setTimeout(() => {
+        window.location.href = `${window.location.origin}/login?provider=vk&code=mock_vk_code`
+      }, 800)
       return
     }
     const redirectUri = encodeURIComponent(`${window.location.origin}/login?provider=vk`)
