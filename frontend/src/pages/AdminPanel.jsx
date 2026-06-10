@@ -205,6 +205,38 @@ export function AdminPanel() {
     }
   }
 
+  const handleResetLimits = async (userId) => {
+    if (!window.confirm('Сбросить лимиты использования этого пользователя в ноль?')) return
+    try {
+      await api.post('/admin/reset-limits', { user_id: userId })
+      toast.success('Лимиты использования сброшены')
+      loadData()
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Ошибка сброса лимитов')
+    }
+  }
+
+  const handleToggleStatus = async (userId) => {
+    try {
+      const res = await api.post('/admin/toggle-user-status', { user_id: userId })
+      toast.success(res.data?.message || 'Статус изменен')
+      loadData()
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Ошибка изменения статуса')
+    }
+  }
+
+  const handleDeletePromocode = async (codeId) => {
+    if (!window.confirm('Вы действительно хотите удалить этот промокод?')) return
+    try {
+      await api.post('/admin/promocodes/delete', { code_id: codeId })
+      toast.success('Промокод удален')
+      loadData()
+    } catch (error) {
+      toast.error('Ошибка при удалении промокода')
+    }
+  }
+
   const handleGeneratePromos = async (e) => {
     e.preventDefault()
     setSubmitting(true)
@@ -424,6 +456,8 @@ export function AdminPanel() {
                       <tr className="border-b border-white/5">
                         <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20">Пользователь</th>
                         <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20">Тариф</th>
+                        <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20">Лимиты (Док/Договор)</th>
+                        <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20">Статус</th>
                         <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20 text-right">Управление</th>
                       </tr>
                     </thead>
@@ -446,20 +480,60 @@ export function AdminPanel() {
                               {u?.plan}
                             </span>
                           </td>
+                          <td className="py-6 px-8">
+                            {u?.usage ? (
+                              <div className="space-y-0.5 text-xs text-white/60">
+                                <div>Документы: <span className="font-bold text-white">{u.usage.docs}/{u.usage.max_docs}</span></div>
+                                <div>Договоры: <span className="font-bold text-white">{u.usage.contracts}/{u.usage.max_contracts}</span></div>
+                              </div>
+                            ) : (
+                              <span className="text-white/20 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="py-6 px-8">
+                            <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${
+                              u?.is_active 
+                                ? 'bg-green-500/10 text-green-500 border-green-500/20' 
+                                : 'bg-red-500/10 text-red-500 border-red-500/20'
+                            }`}>
+                              {u?.is_active ? 'Активен' : 'Блок'}
+                            </span>
+                          </td>
                           <td className="py-6 px-8 text-right">
-                             <div className="flex items-center justify-end gap-2">
-                                {['free', 'pro', 'business', 'enterprise'].map(p => (
-                                  <button
-                                    key={p}
-                                    onClick={() => handleUpdatePlan(u.id, p)}
-                                    disabled={updatingUser === u?.id || u?.plan === p}
-                                    className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
-                                      u?.plan === p ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white/60 hover:bg-white/5'
-                                    }`}
-                                  >
-                                    {p === updatingUser ? '...' : p}
-                                  </button>
-                                ))}
+                             <div className="flex items-center justify-end gap-3">
+                                <div className="flex items-center gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+                                   {['free', 'pro', 'business', 'enterprise'].map(p => (
+                                     <button
+                                       key={p}
+                                       onClick={() => handleUpdatePlan(u.id, p)}
+                                       disabled={updatingUser === u?.id || u?.plan === p}
+                                       className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                                         u?.plan === p ? 'bg-white text-black font-extrabold' : 'text-white/40 hover:text-white/80'
+                                       }`}
+                                     >
+                                       {p === updatingUser ? '...' : p}
+                                     </button>
+                                   ))}
+                                </div>
+                                
+                                <button
+                                  onClick={() => handleResetLimits(u.id)}
+                                  className="h-8 px-2.5 rounded-lg border border-white/10 hover:border-white/20 text-[9px] font-black uppercase tracking-widest text-slate-300 hover:text-white hover:bg-white/5 transition-all"
+                                  title="Сбросить лимиты использования"
+                                >
+                                  Сброс
+                                </button>
+
+                                <button
+                                  onClick={() => handleToggleStatus(u.id)}
+                                  className={`h-8 px-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                    u?.is_active 
+                                      ? 'border-red-500/30 text-red-400 hover:bg-red-500/10 hover:border-red-500/50' 
+                                      : 'border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50'
+                                  }`}
+                                >
+                                  {u?.is_active ? 'Бан' : 'Разбан'}
+                                </button>
                              </div>
                           </td>
                         </tr>
@@ -576,7 +650,7 @@ export function AdminPanel() {
                               <tr className="border-b border-white/5 sticky top-0 bg-black z-10">
                                  <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20">Код</th>
                                  <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20">План</th>
-                                 <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20 text-right">Статус</th>
+                                 <th className="py-6 px-8 text-[10px] font-black uppercase tracking-widest text-white/20 text-right">Управление</th>
                               </tr>
                            </thead>
                            <tbody className="text-sm font-medium text-white/80">
@@ -588,9 +662,18 @@ export function AdminPanel() {
                                      <td className="py-5 px-8 font-black italic tracking-widest">{c?.code}</td>
                                      <td className="py-5 px-8 uppercase text-[10px] text-white/40">{c?.plan_id} ({c?.months} мес)</td>
                                      <td className="py-5 px-8 text-right">
-                                        <span className={`text-[9px] font-black uppercase tracking-widest ${c?.is_used ? 'text-red-500' : 'text-green-500'}`}>
-                                           {c?.is_used ? 'Использован' : 'Активен'}
-                                        </span>
+                                        <div className="flex items-center justify-end gap-4">
+                                           <span className={`text-[9px] font-black uppercase tracking-widest ${c?.is_used ? 'text-red-500' : 'text-green-500'}`}>
+                                              {c?.is_used ? 'Использован' : 'Активен'}
+                                           </span>
+                                           <button
+                                              onClick={() => handleDeletePromocode(c.id)}
+                                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                                              title="Удалить промокод"
+                                           >
+                                              <Trash2 className="w-4 h-4" />
+                                           </button>
+                                        </div>
                                      </td>
                                   </tr>
                                 ))

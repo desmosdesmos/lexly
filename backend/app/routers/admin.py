@@ -20,6 +20,7 @@ from app.models.document import Document
 from app.models.activation_code import ActivationCode
 from app.models.notification import Notification
 from app.models.support_message import SupportMessage
+from app.models.usage_limit import UsageLimit
 from app.middleware.auth import get_current_user
 from app.config import settings
 from app.services.usage_limit_service import usage_limit_service
@@ -85,13 +86,22 @@ async def list_users(
         sub_res = await db.execute(select(Subscription).where(Subscription.user_id == u.id))
         sub = sub_res.scalar_one_or_none()
         
+        limit_res = await db.execute(select(UsageLimit).where(UsageLimit.user_id == u.id))
+        lim = limit_res.scalar_one_or_none()
+        
         user_list.append({
             "id": u.id,
             "email": u.email,
             "full_name": u.full_name,
             "plan": sub.plan_type if sub else "free",
             "created_at": u.created_at,
-            "is_active": u.is_active
+            "is_active": u.is_active,
+            "usage": {
+                "docs": lim.documents_generated if lim else 0,
+                "max_docs": lim.max_documents if lim else 5,
+                "contracts": lim.contracts_reviewed if lim else 0,
+                "max_contracts": lim.max_contracts if lim else 3
+            } if lim else None
         })
         
     return user_list
@@ -382,3 +392,64 @@ async def send_admin_reply(
             "is_read": new_reply.is_read
         }
     }
+
+
+# --- ДОПОЛНИТЕЛЬНЫЕ АДМИН-ФУНКЦИИ (БЛОКИРОВКА, ЛИМИТЫ, ПРОМО) ---
+
+class ResetLimitsRequest(BaseModel):
+    user_id: str
+
+@router.post("/reset-limits", summary="Сбросить лимиты использования")
+async def reset_user_limits(
+    request: ResetLimitsRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(UsageLimit).where(UsageLimit.user_id == request.user_id))
+    limit = result.scalar_one_or_none()
+    if limit:
+        limit.documents_generated = 0
+        limit.contracts_reviewed = 0
+        await db.commit()
+        return {"status": "ok", "message": "Лимиты использования успешно сброшены"}
+    raise HTTPException(status_code=404, detail="Лимиты пользователя не найдены")
+
+
+class ToggleStatusRequest(BaseModel):
+    user_id: str
+
+@router.post("/toggle-user-status", summary="Заблокировать/разблокировать пользователя")
+async def toggle_user_status(
+    request: ToggleStatusRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(User).where(User.id == request.user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        if user.email in settings.ADMIN_EMAILS:
+            raise HTTPException(status_code=400, detail="Нельзя заблокировать администратора")
+            
+        user.is_active = not user.is_active
+        await db.commit()
+        status_str = "активен" if user.is_active else "заблокирован"
+        return {"status": "ok", "message": f"Пользователь {status_str}", "is_active": user.is_active}
+    raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+
+class DeletePromoRequest(BaseModel):
+    code_id: str
+
+@router.post("/promocodes/delete", summary="Удалить промокод")
+async def delete_promocode(
+    request: DeletePromoRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(ActivationCode).where(ActivationCode.id == request.code_id))
+    code = result.scalar_one_or_none()
+    if code:
+        await db.delete(code)
+        await db.commit()
+        return {"status": "ok", "message": "Промокод успешно удален"}
+    raise HTTPException(status_code=404, detail="Промокод не найден")

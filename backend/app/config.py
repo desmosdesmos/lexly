@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     YOOKASSA_RETURN_URL: str = "https://laxlylaw.ru/dashboard/profile"
 
     # Admin
-    ADMIN_EMAILS: List[str] = ["yan.pashhenko6486@gmail.com", "desmosymail@gmail.com"]
+    ADMIN_EMAILS: List[str] = ["yan.pashhenko6486@gmail.com", "desmosymail@gmail.com", "desmosmail@yandex.ru"]
 
 
     # Email (для восстановления пароля и уведомлений)

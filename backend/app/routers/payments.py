@@ -106,6 +106,7 @@ async def get_plans():
     summary="Оформить подписку",
 )
 async def subscribe(
+    request: Request,
     subscribe_data: SubscribeRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -148,6 +149,21 @@ async def subscribe(
     
     db.add(payment)
     await db.commit()
+    
+    # Если секретный ключ YooKassa не настроен — используем встроенную тестовую песочницу
+    if not settings.YOOKASSA_SECRET_KEY:
+        logger.info(f"YooKassa key is not set. Using local mock checkout for payment {payment_id}")
+        base_url = str(request.base_url).rstrip('/')
+        payment.payment_url = f"{base_url}/api/v1/payments/confirm-mock/{payment_id}"
+        await db.commit()
+        await db.refresh(payment)
+        return {
+            "payment_url": payment.payment_url,
+            "session_id": str(payment.id),
+            "plan_id": plan_id.value,
+            "amount": float(plan.price),
+            "currency": plan.currency,
+        }
     
     # Создание платежа в YooKassa
     try:
@@ -580,3 +596,209 @@ async def activate_subscription_code(
         "plan_id": plan_id,
         "end_date": subscription.end_date.isoformat(),
     }
+
+
+# ========== Тестовая Песочница Оплаты (MOCK Sandbox) ==========
+
+from fastapi.responses import HTMLResponse, RedirectResponse
+
+@router.get("/confirm-mock/{payment_id}", response_class=HTMLResponse)
+async def get_confirm_mock(
+    payment_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Отрисовка страницы подтверждения оплаты в песочнице."""
+    result = await db.execute(select(Payment).where(Payment.id == payment_id))
+    payment = result.scalar_one_or_none()
+    if not payment:
+        return HTMLResponse("<h1>Платеж не найден</h1>", status_code=404)
+        
+    plan_name = "Подписка"
+    plan = next((p for p in PLANS if p.id == payment.plan_type), None)
+    if plan:
+        plan_name = plan.name
+
+    cancel_url = settings.YOOKASSA_RETURN_URL or "/dashboard/profile"
+
+    return HTMLResponse(content=f"""
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <title>Песочница Оплаты Laxly</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {{
+                background-color: #070A13;
+                color: #f1f5f9;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+            }}
+            .card {{
+                background-color: #0e1325;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 28px;
+                padding: 40px;
+                width: 90%;
+                max-width: 400px;
+                text-align: center;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+            }}
+            .logo {{
+                font-size: 26px;
+                font-weight: 900;
+                color: #ffffff;
+                letter-spacing: -0.03em;
+                margin-bottom: 20px;
+            }}
+            .logo span {{
+                color: #0A84FF;
+            }}
+            h1 {{
+                font-size: 18px;
+                margin-top: 0;
+                font-weight: 700;
+                color: #94a3b8;
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+            }}
+            .amount {{
+                font-size: 42px;
+                font-weight: 900;
+                margin: 25px 0 5px 0;
+                color: #ffffff;
+            }}
+            .plan {{
+                font-size: 14px;
+                color: #a78bfa;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                margin-bottom: 35px;
+            }}
+            .btn {{
+                background: linear-gradient(135deg, #0A84FF 0%, #5E5CE6 100%);
+                color: white;
+                border: none;
+                padding: 16px 28px;
+                border-radius: 14px;
+                font-size: 14px;
+                font-weight: 850;
+                cursor: pointer;
+                width: 100%;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                transition: transform 0.1s ease, filter 0.2s ease;
+                box-shadow: 0 10px 20px rgba(10, 132, 255, 0.15);
+            }}
+            .btn:hover {{
+                filter: brightness(1.1);
+            }}
+            .btn:active {{
+                transform: scale(0.97);
+            }}
+            .cancel-link {{
+                display: inline-block;
+                margin-top: 25px;
+                color: #64748b;
+                text-decoration: none;
+                font-size: 13px;
+                font-weight: 600;
+                transition: color 0.2s ease;
+            }}
+            .cancel-link:hover {{
+                color: #cbd5e1;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="logo">Laxly<span>.</span> Sandbox</div>
+            <h1>Тестовая оплата подписки</h1>
+            <div class="amount">{payment.amount} ₽</div>
+            <div class="plan">Тариф: {plan_name}</div>
+            
+            <form action="/api/v1/payments/confirm-mock/{payment_id}" method="POST">
+                <button type="submit" class="btn">Подтвердить тестовый платёж</button>
+            </form>
+            
+            <a href="{cancel_url}" class="cancel-link">Вернуться назад</a>
+        </div>
+    </body>
+    </html>
+    """, status_code=200)
+
+@router.post("/confirm-mock/{payment_id}")
+async def post_confirm_mock(
+    payment_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Имитация подтверждения успешной оплаты подписки."""
+    result = await db.execute(select(Payment).where(Payment.id == payment_id))
+    payment = result.scalar_one_or_none()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Платеж не найден")
+        
+    redirect_url = settings.YOOKASSA_RETURN_URL or "/dashboard/profile"
+        
+    if payment.status == PaymentStatus.COMPLETED:
+        return RedirectResponse(url=f"{redirect_url}?payment=already_processed", status_code=303)
+        
+    # Обновляем статус платежа
+    payment.status = PaymentStatus.COMPLETED
+    payment.completed_at = datetime.utcnow()
+    payment.transaction_id = f"mock_{uuid.uuid4().hex[:12]}"
+    
+    # Обновление или создание подписки
+    sub_result = await db.execute(select(Subscription).where(Subscription.user_id == payment.user_id))
+    subscription = sub_result.scalar_one_or_none()
+    
+    # Рассчитываем дату окончания подписки (на 1 месяц вперед)
+    from datetime import date as date_type
+    import calendar
+    today = date_type.today()
+    year = today.year
+    month = today.month + 1
+    if month > 12:
+        year += 1
+        month -= 12
+    last_day = calendar.monthrange(year, month)[1]
+    end_date = date_type(year, month, min(today.day, last_day))
+    
+    if not subscription:
+        subscription = Subscription(
+            user_id=payment.user_id,
+            plan_type=payment.plan_type,
+            status=SubscriptionStatus.ACTIVE,
+            end_date=end_date,
+            auto_renew=True
+        )
+        db.add(subscription)
+    else:
+        subscription.plan_type = payment.plan_type
+        subscription.status = SubscriptionStatus.ACTIVE
+        subscription.end_date = end_date
+        subscription.auto_renew = True
+        
+    # Обновление лимитов
+    await usage_limit_service.update_plan_limits(str(payment.user_id), payment.plan_type, db)
+    await db.commit()
+    
+    # Уведомление в Telegram
+    try:
+        user_result = await db.execute(select(User).where(User.id == payment.user_id))
+        user = user_result.scalar_one_or_none()
+        if user:
+            await telegram_notifier.notify_subscription_activated(
+                user_email=user.email,
+                plan_id=payment.plan_type,
+                code="SANDBOX_MOCK"
+            )
+    except Exception as te:
+        logger.warning(f"Failed to send Telegram notification: {te}")
+        
+    return RedirectResponse(url=f"{redirect_url}?payment=success", status_code=303)
